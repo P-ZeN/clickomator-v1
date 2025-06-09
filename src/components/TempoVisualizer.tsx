@@ -1,135 +1,189 @@
-
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 
 interface TempoVisualizerProps {
   isPlaying: boolean;
-  currentBeat: number;
-  beatsPerMeasure: number;
+  currentBeat: number; // Signals the start of a new beat (0-indexed within measure)
+  beatsPerMeasure: number; // Total beats in a measure
   color: string;
-  approach: string;
-  tempo: number;
+  approach: 'linear' | 'ease-in' | 'ease-out' | 'bounce' | 'elastic';
+  tempo: number; // Beats per minute
 }
+
+// Easing functions
+const easeLinear = (t: number) => t;
+const easeInQuad = (t: number) => t * t;
+const easeOutQuad = (t: number) => t * (2 - t);
+const easeOutBounce = (t: number) => {
+  const n1 = 7.5625;
+  const d1 = 2.75;
+  if (t < 1 / d1) {
+    return n1 * t * t;
+  } else if (t < 2 / d1) {
+    return n1 * (t -= 1.5 / d1) * t + 0.75;
+  } else if (t < 2.5 / d1) {
+    return n1 * (t -= 2.25 / d1) * t + 0.9375;
+  } else {
+    return n1 * (t -= 2.625 / d1) * t + 0.984375;
+  }
+};
+const easeOutElastic = (t: number) => {
+  const c4 = (2 * Math.PI) / 3;
+  return t === 0
+    ? 0
+    : t === 1
+    ? 1
+    : Math.pow(2, -10 * t) * Math.sin((t * 10 - 0.75) * c4) + 1;
+};
+
+const getEasingFunction = (approach: TempoVisualizerProps['approach']) => {
+  switch (approach) {
+    case 'ease-in':
+      return easeInQuad;
+    case 'ease-out':
+      return easeOutQuad;
+    case 'bounce':
+      return easeOutBounce;
+    case 'elastic':
+      return easeOutElastic;
+    case 'linear':
+    default:
+      return easeLinear;
+  }
+};
 
 const TempoVisualizer: React.FC<TempoVisualizerProps> = ({
   isPlaying,
   currentBeat,
-  beatsPerMeasure,
   color,
   approach,
-  tempo
+  tempo,
 }) => {
-  const [position, setPosition] = useState(0);
-  const [opacity, setOpacity] = useState(0.3);
-  const [beatProgress, setBeatProgress] = useState(0);
+  const [yPosition, setYPosition] = useState(1); // 0 for top, 1 for bottom of travel. Start at bottom.
+  const animationFrameId = useRef<number>();
+  const beatStartTimeRef = useRef<number>(0); // Timestamp of the last beat start
+  const lastProcessedBeatKeyRef = useRef<string>(''); // To detect new beats using a key
 
   useEffect(() => {
-    if (!isPlaying) {
-      setPosition(0);
-      setOpacity(0.3);
-      setBeatProgress(0);
+    // This effect resets the beat start time when a new beat occurs or playback starts/stops.
+    const beatKey = `${currentBeat}-${tempo}`;
+
+    if (isPlaying) {
+      if (lastProcessedBeatKeyRef.current !== beatKey || beatStartTimeRef.current === 0) {
+        beatStartTimeRef.current = performance.now();
+        lastProcessedBeatKeyRef.current = beatKey;
+      }
+    } else {
+      // Reset when not playing
+      beatStartTimeRef.current = 0;
+      lastProcessedBeatKeyRef.current = '';
+      setYPosition(1); // Reset visual position to bottom
+    }
+  }, [isPlaying, currentBeat, tempo]);
+
+  useEffect(() => {
+    // This effect handles the animation loop
+    if (!isPlaying || tempo <= 0) {
+      if (animationFrameId.current) {
+        cancelAnimationFrame(animationFrameId.current);
+      }
+      setYPosition(1); // Ensure it's at the bottom when not playing
       return;
     }
 
-    // Calculer la progression dans le beat actuel
-    const beatInterval = 60000 / tempo; // durée d'un beat en ms
-    let startTime = Date.now();
-    
-    const updateProgress = () => {
-      if (!isPlaying) return;
-      
-      const elapsed = Date.now() - startTime;
-      const progress = (elapsed % beatInterval) / beatInterval;
-      setBeatProgress(progress);
-      
-      // Position basée sur l'approche sélectionnée
-      let newPosition;
-      
-      switch (approach) {
-        case 'ease-in':
-          newPosition = 1 - Math.pow(1 - progress, 2);
-          break;
-        case 'ease-out':
-          newPosition = 1 - Math.pow(progress, 2);
-          break;
-        case 'bounce':
-          if (progress < 0.5) {
-            newPosition = 1 - (2 * Math.pow(progress, 2));
-          } else {
-            newPosition = 1 - (1 - Math.pow(-2 * progress + 2, 2) / 2);
-          }
-          break;
-        case 'elastic':
-          const c4 = (2 * Math.PI) / 3;
-          if (progress === 0) {
-            newPosition = 0;
-          } else if (progress === 1) {
-            newPosition = 1;
-          } else {
-            newPosition = 1 - (Math.pow(2, -10 * progress) * Math.sin((progress * 10 - 0.75) * c4) + 1);
-          }
-          break;
-        default: // linear
-          newPosition = 1 - progress;
-      }
-      
-      setPosition(Math.max(0, Math.min(1, newPosition)));
-      
-      // Flash sur le beat (début du cycle)
-      if (progress < 0.1) {
-        setOpacity(1);
-      } else {
-        setOpacity(0.7);
-      }
-      
-      requestAnimationFrame(updateProgress);
-    };
-    
-    const animationId = requestAnimationFrame(updateProgress);
-    
-    return () => {
-      cancelAnimationFrame(animationId);
-    };
-  }, [isPlaying, approach, tempo]);
+    const beatDurationMs = (60 / tempo) * 1000;
+    if (beatDurationMs <= 0) return;
 
-  // Reset quand on change de beat
-  useEffect(() => {
-    if (isPlaying) {
-      setBeatProgress(0);
-    }
-  }, [currentBeat]);
+    const easeFn = getEasingFunction(approach);
+
+    const animate = (timestamp: number) => {
+      if (!isPlaying || !beatStartTimeRef.current) {
+        if (isPlaying) animationFrameId.current = requestAnimationFrame(animate);
+        return;
+      }
+
+      const elapsedTimeSinceBeatStart = timestamp - beatStartTimeRef.current;
+
+      let fullBeatProgress = elapsedTimeSinceBeatStart / beatDurationMs;
+
+      fullBeatProgress = Math.max(0, Math.min(fullBeatProgress, 1.0));
+
+      let newYPos;
+      // Cycle: Bottom (yPos=1) on beat -> Top (yPos=0) on half-beat -> Bottom (yPos=1) on next beat
+      if (fullBeatProgress < 0.5) {
+        // First half of the beat: Moving from Bottom (1) to Top (0)
+        const progressInFirstHalf = fullBeatProgress / 0.5; // Normalize to 0-1 for this half
+        newYPos = 1 - easeFn(progressInFirstHalf);
+      } else {
+        // Second half of the beat: Moving from Top (0) back to Bottom (1)
+        const progressInSecondHalf = (fullBeatProgress - 0.5) / 0.5; // Normalize to 0-1 for this half
+        newYPos = easeFn(progressInSecondHalf);
+      }
+
+      setYPosition(newYPos);
+      animationFrameId.current = requestAnimationFrame(animate);
+    };
+
+    animationFrameId.current = requestAnimationFrame(animate);
+
+    return () => {
+      if (animationFrameId.current) {
+        cancelAnimationFrame(animationFrameId.current);
+      }
+    };
+  }, [isPlaying, tempo, approach]);
+
+  const barHeight = 8; // Height of the bar in pixels
+  const displayColor = isPlaying && currentBeat === 0 ? 'red' : color;
+
+  const dynamicCursorStyle: React.CSSProperties = {
+    position: 'absolute',
+    left: '0',
+    top: `calc(${yPosition * 100}% - ${yPosition * barHeight}px)`,
+    width: '100%',
+    height: `${barHeight}px`,
+    backgroundColor: displayColor,
+    // boxShadow for a subtle glow/trail effect
+    boxShadow: `0px 0px 12px 3px ${displayColor}B3`, // color with ~70% opacity
+  };
 
   return (
-    <div className="h-full w-full relative bg-gray-800 p-4">
-      <div className="h-full w-full relative">
-        {/* Piste du curseur */}
-        <div className="absolute left-1/2 transform -translate-x-1/2 w-2 h-full bg-gray-600 rounded-full" />
-        
-        {/* Curseur */}
-        <div
-          className="absolute left-1/2 transform -translate-x-1/2 w-8 h-8 rounded-lg transition-opacity duration-75 shadow-lg"
-          style={{
-            backgroundColor: color,
-            top: `${position * 85}%`,
-            opacity: opacity,
-            boxShadow: `0 0 20px ${color}40`
-          }}
-        />
-        
-        {/* Marqueurs de position */}
-        <div className="absolute left-0 w-full h-px bg-gray-600" style={{ top: '0%' }}>
-          <span className="absolute right-0 text-xs text-gray-400 -mt-2">Beat</span>
-        </div>
-        <div className="absolute left-0 w-full h-px bg-gray-600" style={{ top: '85%' }}>
-          <span className="absolute right-0 text-xs text-gray-400 -mt-2">Rest</span>
-        </div>
-        
-        {/* Indicateur du beat actuel */}
-        <div className="absolute bottom-2 left-1/2 transform -translate-x-1/2">
-          <span className="text-sm text-gray-300 bg-gray-700 px-2 py-1 rounded">
-            Beat {currentBeat + 1}/{beatsPerMeasure}
-          </span>
-        </div>
-      </div>
+    <div style={{
+        position: 'relative',
+        width: '100%',
+        height: '100%',
+        backgroundColor: '#1f2937',
+        overflow: 'hidden'
+    }}>
+      <div style={dynamicCursorStyle}></div>
+
+      <div style={{
+          position: 'absolute',
+          top: '50%',
+          left: '10%',
+          right: '10%',
+          height: '1px',
+          backgroundColor: 'rgba(255,255,255,0.15)',
+          transform: 'translateY(-50%)',
+          zIndex: 0
+      }}></div>
+        <div style={{
+            position: 'absolute',
+            top: '0%',
+            left: '10%',
+            right: '10%',
+            height: '1px',
+            backgroundColor: 'rgba(255,255,255,0.1)',
+            zIndex: 0
+        }}></div>
+        <div style={{
+            position: 'absolute',
+            bottom: '0%',
+            left: '10%',
+            right: '10%',
+            height: '1px',
+            backgroundColor: 'rgba(255,255,255,0.1)',
+            zIndex: 0
+        }}></div>
     </div>
   );
 };
