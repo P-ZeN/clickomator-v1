@@ -66,6 +66,7 @@ const SongView: React.FC<SongViewProps> = ({
   const [tempoValue, setTempoValue] = useState(song.tempo.toString())
   const [titleBgColor, setTitleBgColor] = useState('#000000') // State for title background flash
   const [isFullscreen, setIsFullscreen] = useState(false) // Added isFullscreen state
+  const [isTauri, setIsTauri] = useState(false) // Added isTauri state
 
   const intervalRef = useRef<NodeJS.Timeout>()
   const audioContextRef = useRef<AudioContext>()
@@ -157,6 +158,10 @@ const SongView: React.FC<SongViewProps> = ({
   useEffect(() => {
     setTitleValue(song.title)
     setTempoValue(song.tempo.toString())
+    // Check if running in Tauri
+    if (window.__TAURI__) {
+      setIsTauri(true)
+    }
     if (isPlaying) {
       startMetronome()
     } else {
@@ -502,24 +507,25 @@ const SongView: React.FC<SongViewProps> = ({
   return (
     <div className='h-screen flex flex-col bg-gray-900 text-white overflow-y-auto'>
       <div className='absolute top-4 right-4 z-10'>
-        {' '}
         {/* Container for top-right button */}
-        <Button
-          variant='outline'
-          size='icon'
-          onClick={toggleFullscreen}
-          className='text-white border-white bg-gray-800 hover:bg-gray-700'
-        >
-          {isFullscreen ? (
-            <Minimize className='h-5 w-5' />
-          ) : (
-            <Maximize className='h-5 w-5' />
-          )}
-        </Button>
+        {!isTauri && ( // Conditionally render fullscreen button
+          <Button
+            variant='outline'
+            size='icon'
+            onClick={toggleFullscreen}
+            className='text-white border-white bg-gray-800 hover:bg-gray-700'
+          >
+            {isFullscreen ? (
+              <Minimize className='h-5 w-5' />
+            ) : (
+              <Maximize className='h-5 w-5' />
+            )}
+          </Button>
+        )}
       </div>
       {/* Titre du morceau - flex-shrink-0, specific height e.g., h-[15%] or h-20 */}
       <div
-        className='h-[15vh] md:h-[15%] flex items-center justify-center border-b border-gray-700 flex-shrink-0' // Changed to vh for mobile, kept % for md and up
+        className='h-[15vh] md:h-[15%] flex items-center justify-center border border-gray-700 flex-shrink-0' // Changed to vh for mobile, kept % for md and up
         style={{
           backgroundColor: titleBgColor // Use state for dynamic background color
         }}
@@ -543,13 +549,13 @@ const SongView: React.FC<SongViewProps> = ({
         )}
       </div>
       {/* Contrôles de tempo - flex-shrink-0, specific height e.g., h-[10%] or h-16 */}
-      <div className='h-[10vh] md:h-[10%] flex items-center justify-between px-4 border-b border-white bg-black text-white flex-shrink-0'>
+      <div className='h-[10vh] md:h-[10%] flex items-center justify-between px-4 border-b border-gray-700 text-white flex-shrink-0'>
         {' '}
         {/* Changed to vh for mobile */}
         <Button
           variant='outline'
           size='sm'
-          className='w-[10%] text-xl aspect-square border-white  bg-black text-white'
+          className='w-[10%] text-xl aspect-square border-white  bg-black text-white hover:text-black'
           onClick={() => updateTempo(-1)}
         >
           <Minus className='h-4 w-4' />
@@ -576,7 +582,7 @@ const SongView: React.FC<SongViewProps> = ({
         <Button
           variant='outline'
           size='sm'
-          className='w-[10%] aspect-square ml-2 border-white  bg-black text-white'
+          className='w-[10%] aspect-square ml-2 border-white  bg-black text-white hover:text-black'
           onClick={() => updateTempo(1)}
         >
           <Plus className='h-4 w-4' />

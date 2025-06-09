@@ -5,7 +5,8 @@ import {
   Download,
   Trash2,
   Maximize,
-  Minimize
+  Minimize,
+  LogOut // Added LogOut for the quit button
 } from 'lucide-react' // Added Maximize, Minimize
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -52,11 +53,16 @@ const Index = () => {
   const [newSetlistName, setNewSetlistName] = useState('')
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
   const [isFullscreen, setIsFullscreen] = useState(false) // Added isFullscreen state
+  const [isTauri, setIsTauri] = useState(false) // Added isTauri state
   const { toast } = useToast()
   const navigate = useNavigate()
 
   useEffect(() => {
     loadSetlists()
+    // Check if running in Tauri
+    if (window.__TAURI__) {
+      setIsTauri(true)
+    }
   }, [])
 
   const loadSetlists = () => {
@@ -154,6 +160,42 @@ const Index = () => {
     }
   }
 
+  // Function to close the app (Tauri specific)
+  const quitApp = async () => {
+    if (window.__TAURI__) { // Check if in Tauri environment
+      try {
+        console.log('Attempting to import @tauri-apps/api/process and exit app...');
+        const { exit } = await import('@tauri-apps/api/process');
+        console.log('Calling exit(0)...');
+        await exit(0); // Exit with code 0 for success
+        console.log('exit(0) called successfully.');
+      } catch (error) {
+        console.error('Failed to exit Tauri application using dynamic import:', error);
+        let errorMessage = 'Erreur inconnue';
+        if (error instanceof Error) {
+          errorMessage = error.message;
+          // Add more specific error information if it's a module resolution issue
+          if (errorMessage.includes("Failed to fetch dynamically imported module") || errorMessage.toLowerCase().includes("resolve")) {
+            errorMessage += " (Problème de résolution du module. Vérifiez la configuration de build et l'installation de @tauri-apps/api)";
+          }
+        }
+        toast({
+          title: 'Erreur de fermeture',
+          description: `Impossible de quitter l'application Tauri: ${errorMessage}`,
+          variant: 'destructive',
+        });
+      }
+    } else {
+      // This case should ideally not be reached if the button's visibility is controlled by isTauri
+      console.warn('QuitApp called outside of Tauri environment.');
+      toast({
+        title: 'Information',
+        description: "Cette fonction est réservée à l'application de bureau.",
+        variant: 'default',
+      });
+    }
+  };
+
   useEffect(() => {
     const handleFullscreenChange = () => {
       setIsFullscreen(!!document.fullscreenElement)
@@ -170,66 +212,70 @@ const Index = () => {
         <div className='flex justify-end mb-4'>
           {' '}
           {/* Container for top-right button */}
-          <Button
-            variant='outline'
-            size='icon'
-            onClick={toggleFullscreen}
-            className='text-white border-white bg-gray-800 hover:bg-gray-700'
-          >
-            {isFullscreen ? (
-              <Minimize className='h-5 w-5' />
-            ) : (
-              <Maximize className='h-5 w-5' />
-            )}
-          </Button>
-        </div>
-        <div className='flex flex-col md:flex-row items-center justify-between mb-8'>
-          {' '}
-          {/* Changed to flex-col and md:flex-row for responsiveness */}
-          <div className='flex items-center justify-center w-full md:w-auto mb-4 md:mb-0'>
-            {' '}
-            {/* Logo centered and takes full width on mobile, margin bottom for mobile */}
-            <h1 className='text-3xl font-bold'>
-              <img
-                src='/logo.png'
-                alt='Clickomator Logo'
-                className='h-24 md:h-40 w-auto'
-              />{' '}
-              {/* Adjusted logo height for mobile */}
-            </h1>
-          </div>
-          <div className='flex flex-col sm:flex-row gap-2 w-full md:w-auto text-black'>
-            {' '}
-            {/* Buttons stack on small screens, row on sm and up, full width on mobile */}
+          {!isTauri && ( // Conditionally render fullscreen button
             <Button
               variant='outline'
-              size='sm'
-              onClick={exportSetlists}
-              disabled={setlists.length === 0}
-              className='w-full sm:w-auto' // Full width on smallest screens
+              size='icon'
+              onClick={toggleFullscreen}
+              className='text-white border-white bg-gray-800 hover:bg-gray-700'
             >
-              <Download className='h-4 w-4 mr-2' />
-              Exporter
+              {isFullscreen ? (
+                <Minimize className='h-5 w-5' />
+              ) : (
+                <Maximize className='h-5 w-5' />
+              )}
             </Button>
-            <Button variant='outline' size='sm' asChild>
-              <span className='w-full sm:w-auto inline-block'>
+          )}
+        </div>
+        {/* Changed to flex-col and md:flex-row for responsiveness */}
+        <div className='flex items-center justify-center w-full md:w-auto mb-4 md:mb-0'>
+          {' '}
+          {/* Logo centered and takes full width on mobile, margin bottom for mobile */}
+          <h1 className='text-3xl font-bold'>
+            <img
+              src='/logo.png'
+              alt='Clickomator Logo'
+              className='h-24 md:h-40 w-auto'
+            />{' '}
+            {/* Adjusted logo height for mobile */}
+          </h1>
+        </div>
+        <div className='flex flex-col sm:flex-row gap-2 w-full md:w-auto text-black p-4 justify-center mb-6'>
+          {' '}
+          {/* Buttons stack on small screens, row on sm and up, full width on mobile */}
+          <Button
+            variant='outline'
+            size='sm'
+            onClick={exportSetlists}
+            disabled={setlists.length === 0}
+            className='w-full sm:w-auto border border-white text-white bg-black hover:text-black hover:bg-white' // Full width on smallest screens
+          >
+            <Download className='h-4 w-4 mr-2' />
+            Exporter
+          </Button>
+          <Button
+            variant='outline'
+            size='sm'
+            className=' border border-white text-white bg-black hover:text-black hover:bg-white'
+            asChild
+          >
+            <span className='w-full sm:w-auto inline-block'>
+              {' '}
+              {/* Wrap label in a span. Span takes width properties. inline-block to allow sizing. */}
+              <label className='cursor-pointer flex items-center justify-center w-full h-full px-3'>
                 {' '}
-                {/* Wrap label in a span. Span takes width properties. inline-block to allow sizing. */}
-                <label className='cursor-pointer flex items-center justify-center w-full h-full px-3'>
-                  {' '}
-                  {/* Label fills span, centers content. Added px-3 to match button padding if needed, though buttonVariants should handle it on span */}
-                  <Upload className='h-4 w-4 mr-2' />
-                  Importer
-                  <input
-                    type='file'
-                    accept='.json'
-                    onChange={importSetlists}
-                    className='hidden'
-                  />
-                </label>
-              </span>
-            </Button>
-          </div>
+                {/* Label fills span, centers content. Added px-3 to match button padding if needed, though buttonVariants should handle it on span */}
+                <Upload className='h-4 w-4 mr-2' />
+                Importer
+                <input
+                  type='file'
+                  accept='.json'
+                  onChange={importSetlists}
+                  className='hidden'
+                />
+              </label>
+            </span>
+          </Button>
         </div>
 
         <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6'>
@@ -329,6 +375,20 @@ const Index = () => {
             </div>
           </DialogContent>
         </Dialog>
+
+        {isTauri && ( // Conditionally render Quit button
+          <div className='mt-8 flex justify-center'>
+            <Button
+              variant='destructive'
+              size='lg'
+              onClick={quitApp}
+              className='bg-red-700 hover:bg-red-800'
+            >
+              <LogOut className='h-5 w-5 mr-2' />
+              Quitter l'application
+            </Button>
+          </div>
+        )}
       </div>
     </div>
   )
