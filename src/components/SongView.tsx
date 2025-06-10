@@ -11,6 +11,7 @@ import {
   Volume2,
   VolumeX
 } from 'lucide-react' // Added Volume2, VolumeX
+import midiService from '@/utils/midiService'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -162,6 +163,31 @@ const SongView: React.FC<SongViewProps> = ({
       clearInterval(intervalRef.current)
     }
   }, [])
+  // Check for enabled MIDI
+  useEffect(() => {
+    // Load MIDI enabled status from localStorage
+    const midiEnabled = localStorage.getItem('midi-enabled') === 'true'
+
+    if (midiEnabled) {
+      // Update tempo in MIDI service
+      midiService.setTempo(song.tempo)
+    }
+  }, [song.tempo])
+
+  // Handle MIDI clock start/stop based on play state
+  useEffect(() => {
+    // Check if MIDI is enabled in localStorage
+    const midiEnabled = localStorage.getItem('midi-enabled') === 'true'
+    const midiOutputId = localStorage.getItem('midi-output-id')
+
+    if (midiEnabled && midiOutputId) {
+      if (isPlaying) {
+        midiService.startClock()
+      } else {
+        midiService.stopClock()
+      }
+    }
+  }, [isPlaying])
 
   useEffect(() => {
     setTitleValue(song.title)
@@ -194,12 +220,18 @@ const SongView: React.FC<SongViewProps> = ({
       tempoInputRef.current.select()
     }
   }, [editingTempo])
-
   const updateTempo = (delta: number) => {
     const newTempo = Math.max(30, Math.min(300, song.tempo + delta))
     const updatedSong = { ...song, tempo: newTempo }
     onUpdateSong(updatedSong)
     setTempoValue(newTempo.toString())
+
+    // Update MIDI tempo if enabled
+    const midiEnabled = localStorage.getItem('midi-enabled') === 'true'
+    if (midiEnabled) {
+      midiService.setTempo(newTempo)
+    }
+
     // No need to directly call stop/startMetronome here,
     // the useEffect [song, isPlaying] will handle it when props update.
   }
@@ -520,9 +552,11 @@ const SongView: React.FC<SongViewProps> = ({
       document.removeEventListener('fullscreenchange', handleFullscreenChange)
     }
   }, [])
-
   return (
-    <div className='h-screen flex flex-col bg-gray-900 text-white overflow-y-auto'>
+    <div
+      className='h-screen flex flex-col bg-gray-900 text-white overflow-y-auto pr-2'
+      style={{ scrollbarWidth: 'thin', scrollbarColor: '#4B5563 #111827' }}
+    >
       <div className='absolute top-4 right-4 z-10'>
         {/* Container for top-right button */}
         {!isTauri && ( // Conditionally render fullscreen button
@@ -608,9 +642,9 @@ const SongView: React.FC<SongViewProps> = ({
       {/* Zone de visualisation - flex-1, min-h-0 to allow shrinking */}
       <div className='h-[34vh] md:flex-1 flex flex-row min-h-0'>
         {' '}
-        {/* Reduced mobile height from 45vh to 34vh */}
+        {/* Reduced mobile height from 45vh to 34vh */}{' '}
         {/* TempoVisualizer container: Reduced width by half */}
-        <div className='w-[10%] md:w-1/8 h-full border border-gray-700 overflow-y-auto flex-shrink-0'>
+        <div className='w-[7%] md:w-[10%] md:w-1/8 h-full border border-gray-700 flex-shrink-0'>
           <TempoVisualizer
             isPlaying={isPlaying}
             currentBeat={currentBeat}
@@ -629,8 +663,9 @@ const SongView: React.FC<SongViewProps> = ({
         </div>
         {/* BeatGraphic and Selects container: Takes remaining width, full height */}
         <div className='flex-1 flex flex-col min-h-0 h-full border-r  border-y border-gray-700'>
-          {/* BeatGraphic container: Takes most of the height, allows internal scroll */}
-          <div className='flex-1 overflow-y-auto min-h-0'>
+          {' '}
+          {/* BeatGraphic container: Takes most of the height */}
+          <div className='flex-1 min-h-0'>
             <BeatGraphic
               isPlaying={isPlaying}
               currentBeat={currentBeat}
@@ -640,7 +675,6 @@ const SongView: React.FC<SongViewProps> = ({
               tempo={song.tempo} // Pass the tempo prop here
             />
           </div>
-
           {/* Selects container: Auto height based on content, flex-shrink-0 */}
           <div className='p-4 flex flex-col sm:flex-row items-center justify-end border-t border-gray-700 bg-gray-800 flex-shrink-0'>
             <div className='mr-4'>
@@ -687,7 +721,7 @@ const SongView: React.FC<SongViewProps> = ({
           </div>
         </div>
         {/* Volume Control */}
-        <div className='w-[5%] md:w-1/8 h-full  border-gray-700 flex flex-col items-center justify-between py-0 flex-shrink-0'>
+        <div className='w-[8%]  md:w-[5%]  md:w-1/8 h-full  border-gray-700 flex flex-col items-center justify-between py-0 flex-shrink-0'>
           <Button
             variant='outline'
             size='sm'

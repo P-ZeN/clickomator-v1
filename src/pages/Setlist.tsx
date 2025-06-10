@@ -265,7 +265,13 @@ const Setlist = () => {
             </div>
           </div>
           {/* Song List */}
-          <div className='space-y-2 mb-4 overflow-y-auto flex-1'>
+          <div
+            className='space-y-2 mb-4 overflow-y-auto flex-1 pr-2'
+            style={{
+              scrollbarWidth: 'thin',
+              scrollbarColor: '#4B5563 #111827'
+            }}
+          >
             {setlist.songs.map((song, index) => (
               <Card
                 key={song.id}
@@ -399,7 +405,13 @@ const Setlist = () => {
                 </div>
               </div>
               {/* Song List */}
-              <div className='space-y-2 mb-4 overflow-y-auto flex-1 p-1'>
+              <div
+                className='space-y-2 mb-4 overflow-y-auto flex-1 p-1 pr-2'
+                style={{
+                  scrollbarWidth: 'thin',
+                  scrollbarColor: '#4B5563 #111827'
+                }}
+              >
                 {setlist.songs.map((song, index) => (
                   <Card
                     key={song.id}
