@@ -54,13 +54,14 @@ interface SongViewProps {
   onSetPlayingId: (id: string | null) => void
 }
 
-const SongView: React.FC<SongViewProps> = ({
+// Function component declaration
+const SongView = ({
   song,
   setlist,
   onUpdateSong,
   isPlaying,
   onSetPlayingId
-}) => {
+}: SongViewProps) => {
   // Removed local isPlaying state
   const [currentBeat, setCurrentBeat] = useState(0)
   const [editingTitle, setEditingTitle] = useState(false)
@@ -72,12 +73,15 @@ const SongView: React.FC<SongViewProps> = ({
   const [isTauri, setIsTauri] = useState(false) // Added isTauri state
   const [volume, setVolume] = useState(0.3) // Volume state (0.0 to 1.0)
   const [isMuted, setIsMuted] = useState(false) // Mute state
-
   const intervalRef = useRef<NodeJS.Timeout>()
   const audioContextRef = useRef<AudioContext>()
   const titleInputRef = useRef<HTMLInputElement>(null)
   const tempoInputRef = useRef<HTMLInputElement>(null)
   const titleFlashTimeoutRef = useRef<NodeJS.Timeout | null>(null) // Ref for flash timeout
+
+  // Refs for volume state
+  const volumeRef = useRef<number>(0.3)
+  const isMutedRef = useRef<boolean>(false)
 
   // Refs for double press detection
   const altKeyTimerRef = useRef<NodeJS.Timeout | null>(null)
@@ -213,20 +217,22 @@ const SongView: React.FC<SongViewProps> = ({
       titleInputRef.current.select()
     }
   }, [editingTitle])
-
   useEffect(() => {
     if (editingTempo && tempoInputRef.current) {
       tempoInputRef.current.focus()
       tempoInputRef.current.select()
     }
-  }, [editingTempo])
+  }, [editingTempo]) // Refs for tempo button press-and-hold
+
+  const tempoIntervalRef = useRef<NodeJS.Timeout | null>(null)
+  const tempoAccelerationFrameRef = useRef(0)
+  const isMouseDownRef = useRef(false)
+
   const updateTempo = (delta: number) => {
     const newTempo = Math.max(30, Math.min(300, song.tempo + delta))
     const updatedSong = { ...song, tempo: newTempo }
     onUpdateSong(updatedSong)
-    setTempoValue(newTempo.toString())
-
-    // Update MIDI tempo if enabled
+    setTempoValue(newTempo.toString()) // Update MIDI tempo if enabled
     const midiEnabled = localStorage.getItem('midi-enabled') === 'true'
     if (midiEnabled) {
       midiService.setTempo(newTempo)
@@ -235,6 +241,139 @@ const SongView: React.FC<SongViewProps> = ({
     // No need to directly call stop/startMetronome here,
     // the useEffect [song, isPlaying] will handle it when props update.
   }
+  const startContinuousTempoUpdate = (delta: number) => {
+    // Set mouse down state to true
+    isMouseDownRef.current = true
+
+    // Log the mouse state for debugging
+    console.log('Mouse down state set to:', isMouseDownRef.current)
+
+    // Clear any existing interval
+    stopContinuousTempoUpdate()
+
+    // Update immediately on first press
+    updateTempo(delta)
+
+    // Initial delay is short to provide immediate feedback
+    const initialDelay = 250
+
+    // Set acceleration frame to 0
+    tempoAccelerationFrameRef.current = 0
+
+    // Set timeout for initial delay
+    tempoIntervalRef.current = setTimeout(() => {
+      // Start the interval with a moderate delay
+      tempoIntervalRef.current = setInterval(() => {
+        // Only update if mouse is still down
+        console.log('Checking mouse state in interval:', isMouseDownRef.current)
+        if (isMouseDownRef.current) {
+          updateTempo(delta)
+
+          // Increase acceleration frame for next iteration
+          tempoAccelerationFrameRef.current++
+
+          // Increase update speed as user continues to hold
+          if (tempoAccelerationFrameRef.current === 5) {
+            // Phase 1: After 5 iterations, increase speed
+            clearInterval(tempoIntervalRef.current as NodeJS.Timeout)
+            tempoIntervalRef.current = setInterval(() => {
+              if (isMouseDownRef.current) {
+                updateTempo(delta)
+              } else {
+                stopContinuousTempoUpdate()
+              }
+            }, 100) // Faster updates
+          } else if (tempoAccelerationFrameRef.current === 15) {
+            // Phase 2: After 15 iterations, increase speed more
+            clearInterval(tempoIntervalRef.current as NodeJS.Timeout)
+            tempoIntervalRef.current = setInterval(() => {
+              if (isMouseDownRef.current) {
+                updateTempo(delta * 2) // 2x speed
+              } else {
+                stopContinuousTempoUpdate()
+              }
+            }, 50) // Very fast updates
+          } else if (tempoAccelerationFrameRef.current === 30) {
+            // Phase 3: Maximum acceleration
+            clearInterval(tempoIntervalRef.current as NodeJS.Timeout)
+            tempoIntervalRef.current = setInterval(() => {
+              if (isMouseDownRef.current) {
+                updateTempo(delta * 5) // 5x speed
+              } else {
+                stopContinuousTempoUpdate()
+              }
+            }, 30) // Maximum speed
+          }
+        } else {
+          stopContinuousTempoUpdate()
+        }
+      }, 150) // Initial update rate
+    }, initialDelay)
+  }
+
+  const stopContinuousTempoUpdate = () => {
+    // Reset the mouse down state
+    isMouseDownRef.current = false
+    console.log('Mouse down state reset to:', isMouseDownRef.current)
+
+    if (tempoIntervalRef.current) {
+      clearTimeout(tempoIntervalRef.current)
+      clearInterval(tempoIntervalRef.current)
+      tempoIntervalRef.current = null
+    } // Remove document-level event listeners
+    document.removeEventListener('mouseup', stopContinuousTempoUpdate)
+    document.removeEventListener('mouseleave', stopContinuousTempoUpdate)
+
+    // Also remove touch event listeners
+    document.removeEventListener('touchend', stopContinuousTempoUpdate)
+    document.removeEventListener('touchcancel', stopContinuousTempoUpdate)
+  } // Clean up the interval on unmount
+  useEffect(() => {
+    // This effect handles cleanup of tempo-related event listeners and intervals
+    console.log('Setting up cleanup effect for tempo events')
+
+    // Setup global event listeners that will work regardless of where the mouse is
+    const handleGlobalMouseUp = () => {
+      console.log('Global mouseup event detected')
+      if (isMouseDownRef.current) {
+        stopContinuousTempoUpdate()
+      }
+    }
+
+    const handleGlobalMouseLeave = () => {
+      console.log('Global mouseleave event detected')
+      if (isMouseDownRef.current) {
+        stopContinuousTempoUpdate()
+      }
+    }
+
+    // Add global listeners that will catch events even if they occur outside buttons
+    document.addEventListener('mouseup', handleGlobalMouseUp)
+    document.addEventListener('mouseleave', handleGlobalMouseLeave)
+
+    // Touch event handlers for mobile devices
+    const handleGlobalTouchEnd = () => {
+      console.log('Global touchend event detected')
+      if (isMouseDownRef.current) {
+        stopContinuousTempoUpdate()
+      }
+    }
+
+    document.addEventListener('touchend', handleGlobalTouchEnd)
+    document.addEventListener('touchcancel', handleGlobalTouchEnd)
+
+    // Return cleanup function
+    return () => {
+      console.log('Cleanup effect running for tempo events')
+      stopContinuousTempoUpdate()
+
+      // Remove the global event listeners
+      document.removeEventListener('mouseup', handleGlobalMouseUp)
+      document.removeEventListener('mouseleave', handleGlobalMouseLeave)
+      document.removeEventListener('touchend', handleGlobalTouchEnd)
+      document.removeEventListener('touchcancel', handleGlobalTouchEnd)
+    }
+  }, [stopContinuousTempoUpdate])
 
   const handleTitleSave = () => {
     if (titleValue.trim()) {
@@ -358,7 +497,6 @@ const SongView: React.FC<SongViewProps> = ({
     onSetPlayingId,
     goToNextSong
   ])
-
   useEffect(() => {
     return () => {
       if (intervalRef.current) {
@@ -367,6 +505,11 @@ const SongView: React.FC<SongViewProps> = ({
       // Clear title flash timeout on component unmount
       if (titleFlashTimeoutRef.current) {
         clearTimeout(titleFlashTimeoutRef.current)
+      }
+      // Clean up tempo update interval
+      if (tempoIntervalRef.current) {
+        clearTimeout(tempoIntervalRef.current)
+        clearInterval(tempoIntervalRef.current)
       }
     }
   }, [])
@@ -395,9 +538,6 @@ const SongView: React.FC<SongViewProps> = ({
       }
     }
   }, [isPlaying, currentBeat, song.color])
-  // Create a ref to store the latest volume state values to use in the callback
-  const volumeRef = useRef(volume)
-  const isMutedRef = useRef(isMuted)
 
   // Keep the ref values updated with the latest state
   useEffect(() => {
@@ -602,12 +742,55 @@ const SongView: React.FC<SongViewProps> = ({
       {/* Contrôles de tempo - flex-shrink-0, specific height e.g., h-[10%] or h-16 */}
       <div className='h-[10vh] md:h-[10%] flex items-center justify-between px-0 text-white flex-shrink-0'>
         {' '}
-        {/* Changed to vh for mobile */}
+        {/* Changed to vh for mobile */}{' '}
         <Button
           variant='outline'
           size='sm'
           className='w-[10%] text-xl aspect-square border-white  bg-black text-white hover:text-black'
-          onClick={() => updateTempo(-1)}
+          onClick={e => {
+            // Click will now only trigger for quick taps, not for held presses
+            if (!isMouseDownRef.current) {
+              updateTempo(-1)
+            }
+          }}
+          onMouseDown={e => {
+            e.preventDefault() // Prevent default to ensure proper event behavior
+            console.log('Minus button mousedown event triggered')
+            document.addEventListener('mouseup', stopContinuousTempoUpdate, {
+              once: true
+            })
+            document.addEventListener('mouseleave', stopContinuousTempoUpdate, {
+              once: true
+            })
+            startContinuousTempoUpdate(-1)
+          }}
+          onMouseUp={e => {
+            e.preventDefault()
+            console.log('Minus button mouseup event triggered')
+            stopContinuousTempoUpdate()
+          }}
+          onMouseLeave={() => {
+            console.log('Minus button mouseleave event triggered')
+            stopContinuousTempoUpdate()
+          }}
+          onTouchStart={e => {
+            e.preventDefault() // Prevent default behavior for touch events
+            console.log('Minus button touchstart event triggered')
+            document.addEventListener('touchend', stopContinuousTempoUpdate, {
+              once: true
+            })
+            document.addEventListener(
+              'touchcancel',
+              stopContinuousTempoUpdate,
+              { once: true }
+            )
+            startContinuousTempoUpdate(-1)
+          }}
+          onTouchEnd={e => {
+            e.preventDefault()
+            console.log('Minus button touchend event triggered')
+            stopContinuousTempoUpdate()
+          }}
         >
           <Minus className='h-4 w-4' />
         </Button>
@@ -629,12 +812,55 @@ const SongView: React.FC<SongViewProps> = ({
               {song.tempo} BPM
             </span>
           )}
-        </div>
+        </div>{' '}
         <Button
           variant='outline'
           size='sm'
           className='w-[10%] aspect-square ml-2 border-white  bg-black text-white hover:text-black'
-          onClick={() => updateTempo(1)}
+          onClick={e => {
+            // Click will now only trigger for quick taps, not for held presses
+            if (!isMouseDownRef.current) {
+              updateTempo(1)
+            }
+          }}
+          onMouseDown={e => {
+            e.preventDefault() // Prevent default to ensure proper event behavior
+            console.log('Plus button mousedown event triggered')
+            document.addEventListener('mouseup', stopContinuousTempoUpdate, {
+              once: true
+            })
+            document.addEventListener('mouseleave', stopContinuousTempoUpdate, {
+              once: true
+            })
+            startContinuousTempoUpdate(1)
+          }}
+          onMouseUp={e => {
+            e.preventDefault()
+            console.log('Plus button mouseup event triggered')
+            stopContinuousTempoUpdate()
+          }}
+          onMouseLeave={() => {
+            console.log('Plus button mouseleave event triggered')
+            stopContinuousTempoUpdate()
+          }}
+          onTouchStart={e => {
+            e.preventDefault() // Prevent default behavior for touch events
+            console.log('Plus button touchstart event triggered')
+            document.addEventListener('touchend', stopContinuousTempoUpdate, {
+              once: true
+            })
+            document.addEventListener(
+              'touchcancel',
+              stopContinuousTempoUpdate,
+              { once: true }
+            )
+            startContinuousTempoUpdate(1)
+          }}
+          onTouchEnd={e => {
+            e.preventDefault()
+            console.log('Plus button touchend event triggered')
+            stopContinuousTempoUpdate()
+          }}
         >
           <Plus className='h-4 w-4' />
         </Button>
@@ -832,6 +1058,7 @@ const SongView: React.FC<SongViewProps> = ({
           disabled={currentSongDisplayIndex === setlist.songs.length - 1}
           className='hidden md:h-[80%] md:flex md:order-3 md:flex-1 text-xl aspect-square border-white bg-black text-white items-center justify-center'
         >
+          {' '}
           <SkipForward className='h-20 w-[20%]' />
         </Button>
 
@@ -844,7 +1071,7 @@ const SongView: React.FC<SongViewProps> = ({
             className='w-1/2 py-3 text-xl border-white bg-black text-white flex items-center justify-center h-[100%]'
           >
             <SkipBack className='h-10 w-5' />
-          </Button>
+          </Button>{' '}
           <Button
             variant='outline'
             onClick={handleNextButtonClick}
