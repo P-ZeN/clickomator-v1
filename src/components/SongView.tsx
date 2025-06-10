@@ -7,8 +7,10 @@ import {
   Minus,
   Plus,
   Maximize,
-  Minimize
-} from 'lucide-react' // Added Maximize, Minimize
+  Minimize,
+  Volume2,
+  VolumeX
+} from 'lucide-react' // Added Volume2, VolumeX
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -67,6 +69,8 @@ const SongView: React.FC<SongViewProps> = ({
   const [titleBgColor, setTitleBgColor] = useState('#000000') // State for title background flash
   const [isFullscreen, setIsFullscreen] = useState(false) // Added isFullscreen state
   const [isTauri, setIsTauri] = useState(false) // Added isTauri state
+  const [volume, setVolume] = useState(0.3) // Volume state (0.0 to 1.0)
+  const [isMuted, setIsMuted] = useState(false) // Mute state
 
   const intervalRef = useRef<NodeJS.Timeout>()
   const audioContextRef = useRef<AudioContext>()
@@ -92,6 +96,7 @@ const SongView: React.FC<SongViewProps> = ({
     '5/4',
     '7/8'
   ]
+
   const approaches = [
     { value: 'linear', label: 'Linear' },
     { value: 'ease-in', label: 'Ease In' },
@@ -99,10 +104,8 @@ const SongView: React.FC<SongViewProps> = ({
     // { value: 'bounce', label: 'Bounce' },
     // { value: 'elastic', label: 'Elastic' }
   ]
-
   const beatsPerMeasure = parseInt(song.timeSignature.split('/')[0])
 
-  // Moved startMetronome and stopMetronome definitions earlier
   const playClick = useCallback((beatToPlay: number) => {
     if (!audioContextRef.current) return
 
@@ -117,7 +120,12 @@ const SongView: React.FC<SongViewProps> = ({
       audioContextRef.current.currentTime
     )
 
-    gainNode.gain.setValueAtTime(0.3, audioContextRef.current.currentTime)
+    // Access volume through refs to get current values without dependency
+    const effectiveVolume = volumeRef.current * (isMutedRef.current ? 0 : 1)
+    gainNode.gain.setValueAtTime(
+      effectiveVolume,
+      audioContextRef.current.currentTime
+    )
     gainNode.gain.exponentialRampToValueAtTime(
       0.01,
       audioContextRef.current.currentTime + 0.1
@@ -125,7 +133,7 @@ const SongView: React.FC<SongViewProps> = ({
 
     oscillator.start(audioContextRef.current.currentTime)
     oscillator.stop(audioContextRef.current.currentTime + 0.1)
-  }, []) // playClick typically doesn't need dependencies unless it uses props/state not passed directly
+  }, [])
 
   const startMetronome = useCallback(() => {
     if (!audioContextRef.current) {
@@ -355,6 +363,15 @@ const SongView: React.FC<SongViewProps> = ({
       }
     }
   }, [isPlaying, currentBeat, song.color])
+  // Create a ref to store the latest volume state values to use in the callback
+  const volumeRef = useRef(volume)
+  const isMutedRef = useRef(isMuted)
+
+  // Keep the ref values updated with the latest state
+  useEffect(() => {
+    volumeRef.current = volume
+    isMutedRef.current = isMuted
+  }, [volume, isMuted])
 
   // Keyboard shortcuts effect
   useEffect(() => {
@@ -549,7 +566,7 @@ const SongView: React.FC<SongViewProps> = ({
         )}
       </div>
       {/* Contrôles de tempo - flex-shrink-0, specific height e.g., h-[10%] or h-16 */}
-      <div className='h-[10vh] md:h-[10%] flex items-center justify-between px-4 border-b border-gray-700 text-white flex-shrink-0'>
+      <div className='h-[10vh] md:h-[10%] flex items-center justify-between px-0 text-white flex-shrink-0'>
         {' '}
         {/* Changed to vh for mobile */}
         <Button
@@ -587,13 +604,13 @@ const SongView: React.FC<SongViewProps> = ({
         >
           <Plus className='h-4 w-4' />
         </Button>
-      </div>
+      </div>{' '}
       {/* Zone de visualisation - flex-1, min-h-0 to allow shrinking */}
       <div className='h-[34vh] md:flex-1 flex flex-row min-h-0'>
         {' '}
         {/* Reduced mobile height from 45vh to 34vh */}
-        {/* TempoVisualizer container: Adjusted width for mobile, full height of parent */}
-        <div className='w-[15%] md:w-1/4 h-full border-r border-gray-700 overflow-y-auto flex-shrink-0'>
+        {/* TempoVisualizer container: Reduced width by half */}
+        <div className='w-[10%] md:w-1/8 h-full border border-gray-700 overflow-y-auto flex-shrink-0'>
           <TempoVisualizer
             isPlaying={isPlaying}
             currentBeat={currentBeat}
@@ -611,7 +628,7 @@ const SongView: React.FC<SongViewProps> = ({
           />
         </div>
         {/* BeatGraphic and Selects container: Takes remaining width, full height */}
-        <div className='flex-1 flex flex-col min-h-0 h-full'>
+        <div className='flex-1 flex flex-col min-h-0 h-full border-r  border-y border-gray-700'>
           {/* BeatGraphic container: Takes most of the height, allows internal scroll */}
           <div className='flex-1 overflow-y-auto min-h-0'>
             <BeatGraphic
@@ -669,9 +686,77 @@ const SongView: React.FC<SongViewProps> = ({
             </Select>
           </div>
         </div>
+        {/* Volume Control */}
+        <div className='w-[5%] md:w-1/8 h-full  border-gray-700 flex flex-col items-center justify-between py-0 flex-shrink-0'>
+          <Button
+            variant='outline'
+            size='sm'
+            className='w-8 h-8 aspect-square border-white bg-black text-white hover:text-black flex items-center justify-center'
+            onClick={() => setVolume(Math.min(1, volume + 0.1))}
+          >
+            <Plus className='h-4 w-4' />
+          </Button>{' '}
+          <div
+            className='flex-1 my-4 w-1 bg-gray-700 relative cursor-pointer'
+            onMouseDown={(e: React.MouseEvent) => {
+              // Set initial volume based on click position
+              const rect = e.currentTarget.getBoundingClientRect()
+              const newVolume =
+                1 -
+                Math.max(0, Math.min(1, (e.clientY - rect.top) / rect.height))
+              setVolume(newVolume)
+
+              const handleVolumeMove = (moveEvent: MouseEvent) => {
+                const newVolume =
+                  1 -
+                  Math.max(
+                    0,
+                    Math.min(1, (moveEvent.clientY - rect.top) / rect.height)
+                  )
+                setVolume(newVolume)
+              }
+
+              const handleMouseUp = () => {
+                document.removeEventListener('mousemove', handleVolumeMove)
+                document.removeEventListener('mouseup', handleMouseUp)
+              }
+
+              document.addEventListener('mousemove', handleVolumeMove)
+              document.addEventListener('mouseup', handleMouseUp)
+            }}
+          >
+            <div
+              className='w-3 h-3 rounded-full bg-white absolute left-1/2 -translate-x-1/2'
+              style={{
+                bottom: `${volume * 100}%`,
+                transform: 'translateX(-50%)'
+              }}
+            />
+          </div>
+          <Button
+            variant='outline'
+            size='sm'
+            className='w-8 h-8 aspect-square border-white bg-black text-white hover:text-black flex items-center justify-center'
+            onClick={() => setVolume(Math.max(0, volume - 0.1))}
+          >
+            <Minus className='h-4 w-4' />
+          </Button>
+          <Button
+            variant='outline'
+            size='sm'
+            className='mt-4 w-8 h-8 aspect-square border-white bg-black text-white hover:text-black flex items-center justify-center'
+            onClick={() => setIsMuted(!isMuted)}
+          >
+            {isMuted ? (
+              <VolumeX className='h-4 w-4' />
+            ) : (
+              <Volume2 className='h-4 w-4' />
+            )}
+          </Button>
+        </div>
       </div>
       {/* Contrôles de navigation - Adjusted for new mobile layout */}
-      <div className='min-h-[20vh] md:h-[15%] gap-8 px-4 py-8 flex flex-col md:flex-row items-stretch md:items-center md:justify-center gap-2 md:gap-4 border-t border-gray-700 flex-shrink-0'>
+      <div className='min-h-[20vh] md:h-[15%] gap-8 px-0 py-8 flex flex-col md:flex-row items-stretch md:items-center md:justify-center gap-2 md:gap-4 flex-shrink-0'>
         {/* Play/Stop Button - Full width on mobile, order-first. Desktop: order-2, specific width */}
         <Button
           onClick={() => {

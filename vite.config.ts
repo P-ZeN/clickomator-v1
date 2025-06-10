@@ -18,13 +18,5 @@ export default defineConfig(({ mode }) => ({
     alias: {
       "@": path.resolve(__dirname, "./src"),
     },
-  },
-  optimizeDeps: {
-    exclude: ['@tauri-apps/api/process', '@tauri-apps/api/window', '@tauri-apps/api']
-  },
-  build: {
-    rollupOptions: {
-      external: ['@tauri-apps/api/process', '@tauri-apps/api/window', '@tauri-apps/api']
-    }
   }
 }));

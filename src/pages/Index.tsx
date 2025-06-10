@@ -6,8 +6,9 @@ import {
   Trash2,
   Maximize,
   Minimize,
-  LogOut // Added LogOut for the quit button
-} from 'lucide-react' // Added Maximize, Minimize
+  LogOut,
+  X // Added X icon for quit button
+} from 'lucide-react' // Added X icon
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
@@ -31,6 +32,13 @@ import {
 import { Input } from '@/components/ui/input'
 import { useToast } from '@/hooks/use-toast'
 import { useNavigate } from 'react-router-dom'
+
+// Add global type for __TAURI__ to avoid TS error
+declare global {
+  interface Window {
+    __TAURI__?: unknown
+  }
+}
 
 interface Setlist {
   id: string
@@ -115,7 +123,7 @@ const Index = () => {
     const url = URL.createObjectURL(dataBlob)
     const link = document.createElement('a')
     link.href = url
-    link.download = 'metronome-setlists.json'
+    link.download = 'clickomator-setlists.json'
     link.click()
     URL.revokeObjectURL(url)
   }
@@ -162,39 +170,55 @@ const Index = () => {
 
   // Function to close the app (Tauri specific)
   const quitApp = async () => {
-    if (window.__TAURI__) { // Check if in Tauri environment
+    if (window.__TAURI__) {
       try {
-        console.log('Attempting to import @tauri-apps/api/process and exit app...');
-        const { exit } = await import('@tauri-apps/api/process');
-        console.log('Calling exit(0)...');
-        await exit(0); // Exit with code 0 for success
-        console.log('exit(0) called successfully.');
+        console.log(
+          'Attempting to dynamically import @tauri-apps/api/process...'
+        )
+        const { exit } = await import('@tauri-apps/api/process')
+        console.log('Successfully imported. Calling exit(0)...')
+        await exit(0) // Use dynamically imported exit function
+        console.log('exit(0) called successfully.')
       } catch (error) {
-        console.error('Failed to exit Tauri application using dynamic import:', error);
-        let errorMessage = 'Erreur inconnue';
+        console.error(
+          'Failed to exit Tauri application using dynamic import:',
+          error
+        )
+        let errorDetails = 'Erreur inconnue lors de la tentative de fermeture.'
         if (error instanceof Error) {
-          errorMessage = error.message;
-          // Add more specific error information if it's a module resolution issue
-          if (errorMessage.includes("Failed to fetch dynamically imported module") || errorMessage.toLowerCase().includes("resolve")) {
-            errorMessage += " (Problème de résolution du module. Vérifiez la configuration de build et l'installation de @tauri-apps/api)";
+          errorDetails = error.message // Original error message
+          if (
+            errorDetails.toLowerCase().includes('resolve module specifier') ||
+            errorDetails.includes(
+              'Failed to fetch dynamically imported module'
+            ) ||
+            errorDetails.toLowerCase().includes('cannot find module') // Broader check
+          ) {
+            errorDetails +=
+              " (Problème avec l'API Tauri. Vérifiez l'installation de @tauri-apps/api, la allowlist, et la configuration de build.)"
           }
+        } else if (typeof error === 'string') {
+          errorDetails = error
+        } else {
+          errorDetails = `Erreur non-standard capturée. Type: ${typeof error}. Veuillez vérifier la console pour plus de détails.`
         }
         toast({
           title: 'Erreur de fermeture',
-          description: `Impossible de quitter l'application Tauri: ${errorMessage}`,
+          description: `Impossible de quitter l'application: ${errorDetails}`,
           variant: 'destructive',
-        });
+          duration: 9000 // Increased duration for potentially longer messages
+        })
       }
     } else {
       // This case should ideally not be reached if the button's visibility is controlled by isTauri
-      console.warn('QuitApp called outside of Tauri environment.');
+      console.warn('QuitApp called outside of Tauri environment.')
       toast({
         title: 'Information',
         description: "Cette fonction est réservée à l'application de bureau.",
-        variant: 'default',
-      });
+        variant: 'default'
+      })
     }
-  };
+  }
 
   useEffect(() => {
     const handleFullscreenChange = () => {
@@ -205,19 +229,31 @@ const Index = () => {
       document.removeEventListener('fullscreenchange', handleFullscreenChange)
     }
   }, [])
-
   return (
-    <div className='min-h-screen bg-gray-900 text-white p-4'>
-      <div className='max-w-4xl mx-auto'>
+    <div
+      className='min-h-screen text-white bg-cover bg-center flex items-center justify-center'
+      style={{ backgroundImage: 'url(/bg-gilles.jpg)' }}
+    >
+      {' '}
+      <div className='max-w-4xl w-full mx-auto bg-black bg-opacity-90 p-6 rounded-lg shadow-xl'>
         <div className='flex justify-end mb-4'>
           {' '}
           {/* Container for top-right button */}
-          {!isTauri && ( // Conditionally render fullscreen button
+          {isTauri ? (
+            <Button
+              variant='outline'
+              size='icon'
+              onClick={quitApp}
+              className='text-white border-white bg-gray-950 hover:bg-gray-700'
+            >
+              <X className='h-5 w-5' />
+            </Button>
+          ) : (
             <Button
               variant='outline'
               size='icon'
               onClick={toggleFullscreen}
-              className='text-white border-white bg-gray-800 hover:bg-gray-700'
+              className='text-white border-white bg-gray-950 hover:bg-gray-700'
             >
               {isFullscreen ? (
                 <Minimize className='h-5 w-5' />
@@ -277,12 +313,11 @@ const Index = () => {
             </span>
           </Button>
         </div>
-
         <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6'>
           {setlists.map(setlist => (
             <Card
               key={setlist.id}
-              className='bg-gray-800 border-gray-700 hover:bg-gray-750 transition-colors flex flex-col'
+              className='bg-gray-950 border-gray-800 hover:bg-gray-750 transition-colors flex flex-col'
             >
               <CardHeader className='flex-row items-center justify-between'>
                 <CardTitle
@@ -344,7 +379,6 @@ const Index = () => {
             </Card>
           ))}
         </div>
-
         <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
           <DialogTrigger asChild>
             <Button className='w-full bg-green-600 hover:bg-green-700'>
@@ -374,21 +408,8 @@ const Index = () => {
               </Button>
             </div>
           </DialogContent>
-        </Dialog>
-
-        {isTauri && ( // Conditionally render Quit button
-          <div className='mt-8 flex justify-center'>
-            <Button
-              variant='destructive'
-              size='lg'
-              onClick={quitApp}
-              className='bg-red-700 hover:bg-red-800'
-            >
-              <LogOut className='h-5 w-5 mr-2' />
-              Quitter l'application
-            </Button>
-          </div>
-        )}
+        </Dialog>{' '}
+        {/* Removed the always-visible quit button since it's now in the top-right */}
       </div>
     </div>
   )
