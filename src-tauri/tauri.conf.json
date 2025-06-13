@@ -7,8 +7,8 @@
     "distDir": "../dist"
   },
   "package": {
-    "productName": "Clickomator V1",
-    "version": "0.1.0"
+    "productName": "Clickomator V1.1",
+    "version": "0.1.1"
   },
   "tauri": {
     "allowlist": {
@@ -24,7 +24,7 @@
     "bundle": {
       "active": true,
       "category": "Music",
-      "copyright": "",
+      "copyright": "ZeN",
       "deb": {
         "depends": []
       },
@@ -35,7 +35,7 @@
         "../public/128x128@2x.png",
         "../public/favicon.ico"
       ],
-      "identifier": "clickomator.v1",
+      "identifier": "clickomator.v1.1",
       "longDescription": "",
       "macOS": {
         "entitlements": null,
