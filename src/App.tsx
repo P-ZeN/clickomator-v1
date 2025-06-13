@@ -17,7 +17,7 @@ const App = () => (
       <Toaster />
       <Sonner />
       <div className='h-screen max-h-screen overflow-hidden flex flex-col'>
-        <BrowserRouter>
+        <BrowserRouter basename={import.meta.env.VITE_BASE_PATH || '/'}>
           <Routes>
             {' '}
             <Route path='/' element={<Index />} />

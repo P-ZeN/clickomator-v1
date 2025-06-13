@@ -33,6 +33,7 @@ import {
   ResizablePanel,
   ResizableHandle
 } from '@/components/ui/resizable'
+import { assetPath } from '@/utils/assetPath'
 
 interface Song {
   id: string
@@ -253,7 +254,7 @@ const Setlist = () => {
                 <ArrowLeft className='h-4 w-4' />
               </Button>
               <img
-                src='/logo.png'
+                src={assetPath('logo.png')}
                 alt='Clickomator Logo'
                 className='h-12 w-auto'
               />
@@ -393,7 +394,7 @@ const Setlist = () => {
                     <ArrowLeft className='h-4 w-4' />
                   </Button>
                   <img
-                    src='/logo.png'
+                    src={assetPath('logo.png')}
                     alt='Clickomator Logo'
                     className='h-12 w-auto'
                   />

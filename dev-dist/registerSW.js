@@ -1,0 +1,1 @@
+if('serviceWorker' in navigator) navigator.serviceWorker.register('/clickomator/dev-sw.js?dev-sw', { scope: '/clickomator/', type: 'classic' })

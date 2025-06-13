@@ -1,17 +1,18 @@
 [package]
-name = "app"
+name = "clickomator"
 version = "0.1.0"
-description = "A Tauri App"
-authors = ["you"]
+description = "Métronome audio et visuel"
+authors = ["ZeN"]
 license = ""
 repository = ""
 default-run = "app"
-edition = "2021"
+edition = "2025"
 rust-version = "1.60"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [build-dependencies]
+
 tauri-build = { version = "1.5.5", features = [] }
 
 [dependencies]

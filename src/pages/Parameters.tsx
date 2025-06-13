@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { ArrowLeft, Maximize, Minimize } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import MidiSettings from '@/components/MidiSettings'
+import { assetPath } from '@/utils/assetPath'
 
 // Add global type for __TAURI__ to avoid TS error
 declare global {
@@ -51,7 +52,7 @@ const Parameters = () => {
   return (
     <div
       className='min-h-screen text-white bg-cover bg-center flex items-center justify-center'
-      style={{ backgroundImage: 'url(/bg-gilles.jpg)' }}
+      style={{ backgroundImage: 'url(' + assetPath('bg-gilles.jpg') + ')' }}
     >
       <div className='max-w-4xl w-full mx-auto bg-black bg-opacity-90 p-6 rounded-lg shadow-xl'>
         <div className='flex justify-between items-center mb-6'>
@@ -92,7 +93,7 @@ const Parameters = () => {
           {/* Add more settings sections in future if needed */}
           <div className='flex mt-8 justify-center'>
             <img
-              src='/logo.png'
+              src={assetPath('logo.png')}
               alt='Clickomator Logo'
               className='h-16 w-auto opacity-50'
             />

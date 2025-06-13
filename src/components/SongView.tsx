@@ -75,6 +75,9 @@ const SongView = ({
   const [isMuted, setIsMuted] = useState(false) // Mute state
   const intervalRef = useRef<NodeJS.Timeout>()
   const audioContextRef = useRef<AudioContext>()
+  const audioElementRef = useRef<HTMLAudioElement | null>(null) // For the wrapper <audio> element
+  const mediaStreamDestinationRef =
+    useRef<MediaStreamAudioDestinationNode | null>(null) // For MediaStream destination
   const titleInputRef = useRef<HTMLInputElement>(null)
   const tempoInputRef = useRef<HTMLInputElement>(null)
   const titleFlashTimeoutRef = useRef<NodeJS.Timeout | null>(null) // Ref for flash timeout
@@ -112,13 +115,20 @@ const SongView = ({
   const beatsPerMeasure = parseInt(song.timeSignature.split('/')[0])
 
   const playClick = useCallback((beatToPlay: number) => {
-    if (!audioContextRef.current) return
+    if (!audioContextRef.current) {
+      // Changed condition
+      console.warn(
+        'playClick: AudioContext not ready.' // Updated message
+      )
+      return
+    }
 
     const oscillator = audioContextRef.current.createOscillator()
     const gainNode = audioContextRef.current.createGain()
 
     oscillator.connect(gainNode)
-    gainNode.connect(audioContextRef.current.destination)
+    // Connect directly to audioContext.destination
+    gainNode.connect(audioContextRef.current.destination) // Changed connection
 
     oscillator.frequency.setValueAtTime(
       beatToPlay === 0 ? 1100 : 900,
@@ -131,34 +141,51 @@ const SongView = ({
       effectiveVolume,
       audioContextRef.current.currentTime
     )
-    gainNode.gain.exponentialRampToValueAtTime(
-      0.01,
-      audioContextRef.current.currentTime + 0.1
-    )
 
     oscillator.start(audioContextRef.current.currentTime)
     oscillator.stop(audioContextRef.current.currentTime + 0.1)
   }, [])
 
   const startMetronome = useCallback(() => {
+    const setupAndRunMetronome = () => {
+      // This function assumes audioContextRef.current is valid and running
+      // REMOVED: mediaStreamDestinationRef creation
+      // REMOVED: audioElementRef creation and play()
+
+      // Now that infrastructure should be ready, start the metronome beats
+      setCurrentBeat(0)
+      playClick(0) // playClick will now use direct audioContext.destination
+      const intervalTime = 60000 / song.tempo
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current)
+      }
+      intervalRef.current = setInterval(() => {
+        setCurrentBeat(prevBeat => {
+          const nextBeat = (prevBeat + 1) % beatsPerMeasure
+          playClick(nextBeat)
+          return nextBeat
+        })
+      }, intervalTime)
+    }
+
     if (!audioContextRef.current) {
       const global = window as WindowWithAudioContext
       audioContextRef.current = new (global.AudioContext ||
         global.webkitAudioContext)()
     }
-    setCurrentBeat(0)
-    playClick(0) // playClick is now defined
-    const intervalTime = 60000 / song.tempo
-    if (intervalRef.current) {
-      clearInterval(intervalRef.current)
+
+    if (audioContextRef.current.state === 'suspended') {
+      audioContextRef.current
+        .resume()
+        .then(() => {
+          console.log('AudioContext resumed.')
+          setupAndRunMetronome()
+        })
+        .catch(err => console.error('Error resuming AudioContext:', err))
+    } else {
+      // Context is already running
+      setupAndRunMetronome()
     }
-    intervalRef.current = setInterval(() => {
-      setCurrentBeat(prevBeat => {
-        const nextBeat = (prevBeat + 1) % beatsPerMeasure
-        playClick(nextBeat)
-        return nextBeat
-      })
-    }, intervalTime)
   }, [song.tempo, beatsPerMeasure, playClick])
 
   const stopMetronome = useCallback(() => {
