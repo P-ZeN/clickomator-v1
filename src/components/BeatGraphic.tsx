@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react'
 
+// Add a new prop to BeatGraphic for panelKey
 interface BeatGraphicProps {
   isPlaying: boolean
   currentBeat: number // 0-indexed
@@ -7,6 +8,7 @@ interface BeatGraphicProps {
   color: string
   approach: string
   tempo?: number // Optional: BPM, for more accurate animation
+  panelKey?: number // New: triggers redraw on panel resize
 }
 
 const PADDING = 20 // Padding around the graph
@@ -64,7 +66,8 @@ const BeatGraphic: React.FC<BeatGraphicProps> = ({
   timeSignature,
   color,
   approach,
-  tempo
+  tempo,
+  panelKey // New prop
 }) => {
   const beatsPerMeasure = parseInt(timeSignature.split('/')[0])
   const svgRef = useRef<SVGSVGElement>(null)
@@ -89,6 +92,16 @@ const BeatGraphic: React.FC<BeatGraphicProps> = ({
     window.addEventListener('resize', updateDimensions)
     return () => window.removeEventListener('resize', updateDimensions)
   }, []) // Empty dependency array, runs once on mount and cleans up on unmount
+
+  useEffect(() => {
+    // When panelKey changes, update dimensions (force recalculation)
+    if (svgRef.current) {
+      setDimensions({
+        width: svgRef.current.clientWidth,
+        height: svgRef.current.clientHeight
+      })
+    }
+  }, [panelKey])
 
   useEffect(() => {
     if (!svgRef.current || dimensions.width === 0 || dimensions.height === 0) {
@@ -268,8 +281,8 @@ const BeatGraphic: React.FC<BeatGraphicProps> = ({
             <path
               key={`beat-path-${i}`}
               d={pathData}
-              stroke={color}
-              strokeOpacity={0.3} /* Darkened path opacity */
+              stroke={'#888'} // Use neutral gray for beat lines
+              strokeOpacity={0.3}
               strokeWidth='2'
               fill='none'
             />
@@ -280,13 +293,13 @@ const BeatGraphic: React.FC<BeatGraphicProps> = ({
         {Array.from({ length: beatsPerMeasure }).map((_, i) => (
           <text
             key={`beat-number-${i}`}
-            x={PADDING + i * beatWidth} /* Aligned to the start of the beat */
-            y={PADDING + graphHeight + 15} /* Below the baseline */
+            x={PADDING + i * beatWidth}
+            y={PADDING + graphHeight + 15}
             fill='lightgray'
             fontSize='10'
-            textAnchor='start' /* Align text to the start (left) */
+            textAnchor='start'
           >
-            {i + 1} {/* Display 1-indexed beat numbers */}
+            {i + 1}
           </text>
         ))}
 
@@ -295,13 +308,13 @@ const BeatGraphic: React.FC<BeatGraphicProps> = ({
           <circle
             cx={cursorPos.x}
             cy={cursorPos.y}
-            r='8'
+            r='20'
             fill={currentBeat === 0 ? 'red' : color}
             filter={currentBeat === 0 ? 'url(#glow)' : 'none'}
           >
             <animate
               attributeName='r'
-              values={currentBeat === 0 ? '8;12;8' : '8;8'}
+              values={currentBeat === 0 ? '20;28;20' : '20;20'}
               dur={currentBeat === 0 ? `${beatDuration / 1000}s` : '0.1s'}
               repeatCount={currentBeat === 0 ? 'indefinite' : '0'}
             />

@@ -62,6 +62,34 @@ const Setlist = () => {
   const [playingSongId, setPlayingSongId] = useState<string | null>(null) // New state for playing song
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
   const [newSongTitle, setNewSongTitle] = useState('')
+  const [songListFontSize, setSongListFontSize] = useState(() => {
+    const stored = localStorage.getItem('songListFontSize')
+    return stored ? parseFloat(stored) : 1.1 // rem, default
+  })
+
+  // For desktop panel size persistence
+  const PANEL_SIZE_KEY = 'setlist-panel-sizes'
+  const DEFAULT_PANEL_SIZES = [30, 70]
+  const [panelSizes, setPanelSizes] = useState(() => {
+    const stored = localStorage.getItem(PANEL_SIZE_KEY)
+    if (stored) {
+      try {
+        const arr = JSON.parse(stored)
+        if (
+          Array.isArray(arr) &&
+          arr.length === 2 &&
+          arr.every(
+            v => typeof v === 'number' && v >= 20 && v <= 80 && !isNaN(v)
+          )
+        ) {
+          return arr
+        }
+      } catch (e) {
+        // Ignore JSON parse errors
+      }
+    }
+    return DEFAULT_PANEL_SIZES
+  })
 
   const loadSetlist = React.useCallback(() => {
     const stored = localStorage.getItem('metronome-setlists')
@@ -80,6 +108,21 @@ const Setlist = () => {
   useEffect(() => {
     loadSetlist()
   }, [loadSetlist])
+
+  useEffect(() => {
+    localStorage.setItem('songListFontSize', songListFontSize.toString())
+  }, [songListFontSize])
+
+  // Save panel sizes to localStorage when they change
+  const handlePanelResize = (sizes: number[]) => {
+    // Clamp sizes for safety
+    const clamped = [
+      Math.max(20, Math.min(80, sizes[0])),
+      Math.max(20, Math.min(80, sizes[1]))
+    ]
+    setPanelSizes(clamped)
+    localStorage.setItem(PANEL_SIZE_KEY, JSON.stringify(clamped))
+  }
 
   const saveSetlist = (updatedSetlist: Setlist) => {
     const stored = localStorage.getItem('metronome-setlists')
@@ -258,6 +301,29 @@ const Setlist = () => {
                 alt='Clickomator Logo'
                 className='h-12 w-auto'
               />
+              {/* Font size controls */}
+              <div className='flex flex-col ml-2'>
+                <Button
+                  variant='outline'
+                  size='icon'
+                  className='p-1 mb-1 h-6 w-6 text-xs bg-black'
+                  onClick={() => setSongListFontSize(f => Math.min(f + 0.1, 2))}
+                  aria-label='Augmenter la taille des titres'
+                >
+                  <ChevronUp className='h-3 w-3' />
+                </Button>
+                <Button
+                  variant='outline'
+                  size='icon'
+                  className='p-1 h-6 w-6 text-xs bg-black'
+                  onClick={() =>
+                    setSongListFontSize(f => Math.max(f - 0.1, 0.7))
+                  }
+                  aria-label='Diminuer la taille des titres'
+                >
+                  <ChevronDown className='h-3 w-3' />
+                </Button>
+              </div>
             </div>
             <div className='flex flex-col items-center'>
               <h1 className='text-2xl font-bold truncate text-center'>
@@ -288,7 +354,10 @@ const Setlist = () => {
                         style={{ backgroundColor: song.color }}
                       />
                       <div className='min-w-0 flex-1'>
-                        <p className='font-medium truncate text-white'>
+                        <p
+                          className='font-medium truncate text-white'
+                          style={{ fontSize: songListFontSize + 'rem' }}
+                        >
                           {song.title}
                         </p>
                         <p className='text-sm text-gray-400'>
@@ -376,10 +445,15 @@ const Setlist = () => {
         </div>
       ) : (
         // Desktop layout with resizable panels
-        <ResizablePanelGroup direction='horizontal' className='flex-1 min-h-0'>
+        <ResizablePanelGroup
+          direction='horizontal'
+          className='flex-1 min-h-0'
+          onLayout={handlePanelResize}
+          autoSaveId={PANEL_SIZE_KEY}
+        >
           <ResizablePanel
-            defaultSize={33}
             minSize={20}
+            maxSize={80}
             className='flex flex-col min-h-0'
           >
             <div className='p-4 flex flex-col overflow-hidden flex-1'>
@@ -398,6 +472,31 @@ const Setlist = () => {
                     alt='Clickomator Logo'
                     className='h-12 w-auto'
                   />
+                  {/* Font size controls */}
+                  <div className='flex flex-col ml-2'>
+                    <Button
+                      variant='outline'
+                      size='icon'
+                      className='p-1 mb-1 h-6 w-6 text-xs bg-black'
+                      onClick={() =>
+                        setSongListFontSize(f => Math.min(f + 0.1, 2))
+                      }
+                      aria-label='Augmenter la taille des titres'
+                    >
+                      <ChevronUp className='h-3 w-3' />
+                    </Button>
+                    <Button
+                      variant='outline'
+                      size='icon'
+                      className='p-1 h-6 w-6 text-xs bg-black'
+                      onClick={() =>
+                        setSongListFontSize(f => Math.max(f - 0.1, 0.7))
+                      }
+                      aria-label='Diminuer la taille des titres'
+                    >
+                      <ChevronDown className='h-3 w-3' />
+                    </Button>
+                  </div>
                 </div>
                 <div className='flex flex-col items-center'>
                   <h1 className='text-2xl font-bold truncate text-center'>
@@ -423,15 +522,18 @@ const Setlist = () => {
                     onDoubleClick={() => handleDoubleClickSong(song.id)}
                   >
                     {/* ... CardContent from above ... */}
-                    <CardContent className='p-3'>
+                    <CardContent className='p-3 pr-0'>
                       <div className='flex items-center justify-between'>
                         <div className='flex items-center gap-3 flex-1 min-w-0'>
                           <div
-                            className='w-4 h-4 rounded-full flex-shrink-0'
+                            className='w-4 h-14 flex-shrink-0'
                             style={{ backgroundColor: song.color }}
                           />
                           <div className='min-w-0 flex-1'>
-                            <p className='font-medium truncate text-white'>
+                            <p
+                              className='font-medium truncate text-white'
+                              style={{ fontSize: songListFontSize + 'rem' }}
+                            >
                               {song.title}
                             </p>
                             <p className='text-sm text-gray-400'>
@@ -519,7 +621,7 @@ const Setlist = () => {
             </div>
           </ResizablePanel>
           <ResizableHandle withHandle />
-          <ResizablePanel defaultSize={67} className='min-h-0 flex flex-col'>
+          <ResizablePanel className='min-h-0 flex flex-col'>
             <div className='flex-1 p-4 overflow-hidden h-full'>
               {selectedSong ? (
                 <SongView
@@ -528,6 +630,7 @@ const Setlist = () => {
                   onUpdateSong={updateSong}
                   isPlaying={selectedSong.id === playingSongId}
                   onSetPlayingId={setPlayingSongId}
+                  panelKey={panelSizes[0]} // Pass left panel width as key
                 />
               ) : (
                 <div className='flex items-center justify-center h-full text-gray-400'>
