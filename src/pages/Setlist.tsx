@@ -42,6 +42,7 @@ interface Song {
   timeSignature: string
   color: string
   approach: string
+  order: number // Added: for drag-and-drop ordering
 }
 
 interface Setlist {
@@ -59,7 +60,8 @@ const Setlist = () => {
 
   const [setlist, setSetlist] = useState<Setlist | null>(null)
   const [selectedSongId, setSelectedSongId] = useState<string | null>(null)
-  const [playingSongId, setPlayingSongId] = useState<string | null>(null) // New state for playing song
+  const [playingSongId, setPlayingSongId] = useState<string | null>(null)
+  const [draggedSongId, setDraggedSongId] = useState<string | null>(null) // Added for drag-and-drop
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
   const [newSongTitle, setNewSongTitle] = useState('')
   const [songListFontSize, setSongListFontSize] = useState(() => {
@@ -97,9 +99,37 @@ const Setlist = () => {
       const setlists = JSON.parse(stored)
       const found = setlists.find((s: Setlist) => s.id === id)
       if (found) {
-        setSetlist(found)
-        if (found.songs.length > 0 && !isMobile) {
-          setSelectedSongId(found.songs[0].id)
+        let orderChanged = false
+        const songsWithOrder = found.songs.map((song: Song, index: number) => {
+          if (typeof song.order !== 'number') {
+            // Check if order is missing or not a number
+            orderChanged = true
+            return { ...song, order: index }
+          }
+          return song
+        })
+
+        songsWithOrder.sort((a: Song, b: Song) => a.order - b.order)
+
+        // If orders were missing/corrected and assigned, re-save the setlist with new order info
+        if (orderChanged) {
+          const storedSetlistsForUpdate =
+            localStorage.getItem('metronome-setlists')
+          if (storedSetlistsForUpdate) {
+            const allSetlists = JSON.parse(storedSetlistsForUpdate)
+            const updatedSetlists = allSetlists.map((s: Setlist) =>
+              s.id === found.id ? { ...found, songs: songsWithOrder } : s
+            )
+            localStorage.setItem(
+              'metronome-setlists',
+              JSON.stringify(updatedSetlists)
+            )
+          }
+        }
+
+        setSetlist({ ...found, songs: songsWithOrder })
+        if (songsWithOrder.length > 0 && !isMobile) {
+          setSelectedSongId(songsWithOrder[0].id)
         }
       }
     }
@@ -148,7 +178,8 @@ const Setlist = () => {
       tempo: 120,
       timeSignature: '4/4',
       color: '#00FF00',
-      approach: 'linear'
+      approach: 'linear',
+      order: setlist.songs.length // Assign order based on current song count
     }
 
     const updatedSetlist = {
@@ -176,16 +207,25 @@ const Setlist = () => {
     const songIndex = setlist.songs.findIndex(s => s.id === songId)
     if (songIndex === -1) return
 
-    const newIndex = direction === 'up' ? songIndex - 1 : songIndex + 1
-    if (newIndex < 0 || newIndex >= setlist.songs.length) return
+    const newSongsArray = [...setlist.songs] // Operate on a mutable copy
 
-    const newSongs = [...setlist.songs]
-    ;[newSongs[songIndex], newSongs[newIndex]] = [
-      newSongs[newIndex],
-      newSongs[songIndex]
-    ]
+    // Determine the target index for the move
+    const targetIndex = direction === 'up' ? songIndex - 1 : songIndex + 1
 
-    const updatedSetlist = { ...setlist, songs: newSongs }
+    // Ensure targetIndex is within bounds
+    if (targetIndex < 0 || targetIndex >= newSongsArray.length) return
+
+    // Perform the move
+    const [movedSong] = newSongsArray.splice(songIndex, 1)
+    newSongsArray.splice(targetIndex, 0, movedSong)
+
+    // Update order for all songs based on their new position in the array
+    const songsWithUpdatedOrder = newSongsArray.map((song, index) => ({
+      ...song,
+      order: index
+    }))
+
+    const updatedSetlist = { ...setlist, songs: songsWithUpdatedOrder }
     saveSetlist(updatedSetlist)
   }
 
@@ -197,9 +237,13 @@ const Setlist = () => {
       setPlayingSongId(null)
     }
 
+    const updatedSongs = setlist.songs
+      .filter(s => s.id !== songId)
+      .map((song, index) => ({ ...song, order: index })) // Re-assign order after deletion
+
     const updatedSetlist = {
       ...setlist,
-      songs: setlist.songs.filter(s => s.id !== songId)
+      songs: updatedSongs
     }
 
     saveSetlist(updatedSetlist)
@@ -273,6 +317,55 @@ const Setlist = () => {
     }
   }
 
+  // Drag and Drop Handlers
+  const handleDragStart = (songId: string) => {
+    setDraggedSongId(songId)
+  }
+
+  const handleDrop = (targetSongId: string) => {
+    if (!draggedSongId || !setlist || draggedSongId === targetSongId) {
+      setDraggedSongId(null)
+      return
+    }
+
+    const currentSongs = [...setlist.songs]
+    const draggedItemIndex = currentSongs.findIndex(
+      song => song.id === draggedSongId
+    )
+    let targetItemIndex = currentSongs.findIndex(
+      song => song.id === targetSongId
+    )
+
+    if (draggedItemIndex === -1 || targetItemIndex === -1) {
+      setDraggedSongId(null)
+      return
+    }
+
+    // Remove dragged item
+    const [draggedItem] = currentSongs.splice(draggedItemIndex, 1)
+
+    // Adjust targetItemIndex if draggedItem was before targetItem in the array
+    if (draggedItemIndex < targetItemIndex) {
+      targetItemIndex--
+    }
+
+    // Insert dragged item at the updated target's original position
+    currentSongs.splice(targetItemIndex, 0, draggedItem)
+
+    // Update order for all songs
+    const reorderedSongs = currentSongs.map((song, index) => ({
+      ...song,
+      order: index
+    }))
+
+    saveSetlist({ ...setlist, songs: reorderedSongs })
+    setDraggedSongId(null)
+  }
+
+  const handleDragEnd = () => {
+    setDraggedSongId(null)
+  }
+
   if (!setlist) {
     return (
       <div className='min-h-screen bg-gray-900 flex items-center justify-center text-white'>
@@ -342,9 +435,16 @@ const Setlist = () => {
             {setlist.songs.map((song, index) => (
               <Card
                 key={song.id}
-                className={`bg-gray-800 border-gray-700 hover:bg-gray-750 transition-colors cursor-pointer`}
+                className={`bg-gray-800 border-gray-700 hover:bg-gray-750 transition-colors cursor-pointer ${
+                  draggedSongId === song.id ? 'opacity-50' : ''
+                }`}
                 onClick={() => openSong(song.id)}
                 onDoubleClick={() => handleDoubleClickSong(song.id)}
+                draggable={true}
+                onDragStart={() => handleDragStart(song.id)}
+                onDragOver={e => e.preventDefault()} // Allow drop
+                onDrop={() => handleDrop(song.id)}
+                onDragEnd={handleDragEnd}
               >
                 <CardContent className='p-3'>
                   <div className='flex items-center justify-between'>
@@ -358,7 +458,7 @@ const Setlist = () => {
                           className='font-medium truncate text-white'
                           style={{ fontSize: songListFontSize + 'rem' }}
                         >
-                          {song.title}
+                          {song.order + 1}. {song.title}
                         </p>
                         <p className='text-sm text-gray-400'>
                           {song.tempo} BPM • {song.timeSignature}
@@ -517,9 +617,14 @@ const Setlist = () => {
                     key={song.id}
                     className={`bg-gray-800 border-gray-700 hover:bg-gray-750 transition-colors cursor-pointer ${
                       selectedSongId === song.id ? 'ring-2 ring-green-400' : ''
-                    }`}
+                    } ${draggedSongId === song.id ? 'opacity-50' : ''}`}
                     onClick={() => openSong(song.id)}
                     onDoubleClick={() => handleDoubleClickSong(song.id)}
+                    draggable={true}
+                    onDragStart={() => handleDragStart(song.id)}
+                    onDragOver={e => e.preventDefault()} // Allow drop
+                    onDrop={() => handleDrop(song.id)}
+                    onDragEnd={handleDragEnd}
                   >
                     {/* ... CardContent from above ... */}
                     <CardContent className='p-3 pr-0'>
@@ -534,7 +639,7 @@ const Setlist = () => {
                               className='font-medium truncate text-white'
                               style={{ fontSize: songListFontSize + 'rem' }}
                             >
-                              {song.title}
+                              {song.order + 1}. {song.title}
                             </p>
                             <p className='text-sm text-gray-400'>
                               {song.tempo} BPM • {song.timeSignature}

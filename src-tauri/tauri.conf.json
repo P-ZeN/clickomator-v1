@@ -7,7 +7,7 @@
     "distDir": "../dist"
   },
   "package": {
-    "productName": "Clickomator V1.1",
+    "productName": "Clickomator_V1.1",
     "version": "0.1.1"
   },
   "tauri": {
@@ -54,20 +54,23 @@
       }
     },
     "security": {
-      "csp": null
+      "csp": "default-src 'self' tauri: asset: https://asset.localhost; img-src 'self' asset: https://asset.localhost data:; style-src 'self' 'unsafe-inline' asset: https://asset.localhost; script-src 'self' tauri: asset: https://asset.localhost; connect-src 'self' tauri: asset: https://asset.localhost;"
     },
     "updater": {
       "active": false
     },
     "windows": [
-      {
+        {
         "fullscreen": true,
         "height": 600,
         "resizable": true,
         "title": "Clickomator",
         "width": 800,
-        "decorations": true
-      }
+        "decorations": true,
+        "visible": true,
+        "additionalBrowserArgs":
+          " --enable-ui-devtools"
+        }
     ]
   }
 }
