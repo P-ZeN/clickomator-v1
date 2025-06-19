@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import {
   ArrowLeft,
@@ -366,6 +366,76 @@ const Setlist = () => {
     setDraggedSongId(null)
   }
 
+  const songListRef = useRef<HTMLDivElement>(null)
+  const songCardRefs = useRef<(HTMLDivElement | null)[]>([])
+  const lastAltPressTime = useRef<number | null>(null)
+  const altPressCount = useRef<number>(0)
+  const altTimeout = useRef<NodeJS.Timeout | null>(null)
+
+  // Desktop-only: Keyboard navigation (Alt/AltGr for prev/next, single/double press for select/play)
+  useEffect(() => {
+    if (isMobile) return
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.key === 'Alt' || e.key === 'AltGraph') && setlist && setlist.songs.length > 0) {
+        // AltGr = next, Alt = prev
+        const direction: 'next' | 'prev' = e.key === 'AltGraph' ? 'next' : 'prev'
+        const now = Date.now()
+        if (lastAltPressTime.current && now - lastAltPressTime.current < 400) {
+          altPressCount.current += 1
+        } else {
+          altPressCount.current = 1
+        }
+        lastAltPressTime.current = now
+        if (altTimeout.current) clearTimeout(altTimeout.current)
+        altTimeout.current = setTimeout(() => {
+          if (document.activeElement && ['INPUT', 'TEXTAREA'].includes(document.activeElement.tagName)) return
+          const currentIdx = setlist.songs.findIndex(s => s.id === selectedSongId)
+          let nextIdx = currentIdx
+          if (direction === 'next') {
+            nextIdx = Math.min(currentIdx + 1, setlist.songs.length - 1)
+          } else {
+            nextIdx = Math.max(currentIdx - 1, 0)
+          }
+          if (nextIdx !== currentIdx) {
+            setSelectedSongId(setlist.songs[nextIdx].id)
+            if (altPressCount.current >= 2) {
+              setPlayingSongId(setlist.songs[nextIdx].id)
+            } else {
+              setPlayingSongId(null)
+            }
+          }
+          altPressCount.current = 0
+        }, 300)
+        e.preventDefault()
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown)
+      if (altTimeout.current) clearTimeout(altTimeout.current)
+    }
+  }, [setlist, selectedSongId, isMobile])
+
+  // Desktop-only: Scroll selected song to center (or top if first song)
+  useEffect(() => {
+    if (isMobile) return
+    if (!setlist || !selectedSongId || !songListRef.current) return
+    const idx = setlist.songs.findIndex(s => s.id === selectedSongId)
+    const list = songListRef.current
+    const card = songCardRefs.current[idx]
+    if (!card) return
+    const listHeight = list.clientHeight
+    const cardHeight = card.offsetHeight
+    const cardOffsetTop = card.offsetTop
+    const halfway = listHeight / 2 - cardHeight / 2
+    // Always center at halfway unless at the very top
+    let targetScroll = cardOffsetTop - halfway
+    if (idx === 0 || targetScroll < 0) {
+      targetScroll = 0
+    }
+    list.scrollTop = targetScroll
+  }, [selectedSongId, setlist, isMobile])
+
   if (!setlist) {
     return (
       <div className='min-h-screen bg-gray-900 flex items-center justify-center text-white'>
@@ -606,6 +676,7 @@ const Setlist = () => {
               </div>
               {/* Song List */}
               <div
+                ref={songListRef}
                 className='space-y-2 mb-4 overflow-y-auto flex-1 p-1 pr-2'
                 style={{
                   scrollbarWidth: 'thin',
@@ -615,6 +686,7 @@ const Setlist = () => {
                 {setlist.songs.map((song, index) => (
                   <Card
                     key={song.id}
+                    {...(!isMobile ? { ref: el => (songCardRefs.current[index] = el) } : {})}
                     className={`bg-gray-800 border-gray-700 hover:bg-gray-750 transition-colors cursor-pointer ${
                       selectedSongId === song.id ? 'ring-2 ring-green-400' : ''
                     } ${draggedSongId === song.id ? 'opacity-50' : ''}`}
