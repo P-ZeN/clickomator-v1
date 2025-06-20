@@ -150,7 +150,7 @@ const MidiSettings: React.FC<MidiSettingsProps> = ({
           >
             <SelectValue placeholder='Select MIDI output' />
           </SelectTrigger>
-          <SelectContent className='bg-gray-900 border-gray-700'>
+          <SelectContent className='bg-gray-900 border-gray-700 focus:text-gray-100 text-gray-200'>
             {midiOutputs.length === 0 ? (
               <SelectItem value='none' disabled>
                 No MIDI outputs found

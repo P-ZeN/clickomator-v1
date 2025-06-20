@@ -158,7 +158,7 @@ const Parameters = () => {
                       <SelectItem
                         key={sound.path}
                         value={sound.path}
-                        className='text-white bg-gray-900 focus:bg-gray-700'
+                        className='text-white bg-gray-900 focus:bg-gray-700 focus:text-gray-100 text-gray-200'
                       >
                         {sound.name}
                       </SelectItem>
