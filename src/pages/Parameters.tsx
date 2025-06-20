@@ -4,6 +4,14 @@ import { ArrowLeft, Maximize, Minimize } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import MidiSettings from '@/components/MidiSettings'
 import { assetPath } from '@/utils/assetPath'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from '@/components/ui/select'
+import { Input } from '@/components/ui/input'
 
 // Add global type for __TAURI__ to avoid TS error
 declare global {
@@ -12,10 +20,31 @@ declare global {
   }
 }
 
+// --- Metronome sound config ---
+const METRONOME_SOUND_PATH_KEY = 'metronomeSoundPath'
+const METRONOME_FIRST_BEAT_RATE_KEY = 'metronomeFirstBeatRate'
+const availableSounds = [
+  { name: 'Cloche', path: assetPath('sounds/bell.wav') },
+  { name: 'Click', path: assetPath('sounds/click.wav') },
+  { name: 'Laser', path: assetPath('sounds/laser.wav') },
+  { name: 'Click 2 (Tack)', path: assetPath('sounds/tack.wav') }
+]
+const DEFAULT_SOUND_PATH = availableSounds[1].path
+const DEFAULT_FIRST_BEAT_RATE = 1.2
+
 const Parameters = () => {
   const navigate = useNavigate()
   const [isFullscreen, setIsFullscreen] = useState(false)
   const [isTauri, setIsTauri] = useState(false)
+
+  // --- Metronome sound state ---
+  const [selectedSoundPath, setSelectedSoundPath] = useState(
+    () => localStorage.getItem(METRONOME_SOUND_PATH_KEY) || DEFAULT_SOUND_PATH
+  )
+  const [firstBeatPlaybackRate, setFirstBeatPlaybackRate] = useState(() => {
+    const stored = localStorage.getItem(METRONOME_FIRST_BEAT_RATE_KEY)
+    return stored ? parseFloat(stored) : DEFAULT_FIRST_BEAT_RATE
+  })
 
   useEffect(() => {
     // Check if running in Tauri
@@ -32,6 +61,16 @@ const Parameters = () => {
       document.removeEventListener('fullscreenchange', handleFullscreenChange)
     }
   }, [])
+
+  useEffect(() => {
+    localStorage.setItem(METRONOME_SOUND_PATH_KEY, selectedSoundPath)
+  }, [selectedSoundPath])
+  useEffect(() => {
+    localStorage.setItem(
+      METRONOME_FIRST_BEAT_RATE_KEY,
+      firstBeatPlaybackRate.toString()
+    )
+  }, [firstBeatPlaybackRate])
 
   const goBack = () => {
     navigate('/')
@@ -90,7 +129,78 @@ const Parameters = () => {
             <MidiSettings />
           </section>
 
-          {/* Add more settings sections in future if needed */}
+          {/* --- Metronome Sound Settings --- */}
+          <section className='mb-8'>
+            <h2 className='text-lg font-medium mb-4'>Metronome Sound</h2>
+            <div className='rounded-lg border border-gray-700 bg-gray-800 p-4'>
+              <div className='mb-4'>
+                <label
+                  htmlFor='metronomeSound'
+                  className='block text-sm font-medium mb-1'
+                >
+                  Sound:
+                </label>
+                <Select
+                  value={selectedSoundPath}
+                  onValueChange={setSelectedSoundPath}
+                >
+                  <SelectTrigger
+                    id='metronomeSound'
+                    className='bg-gray-900 text-white border-gray-700 focus:ring-indigo-500 focus:border-indigo-500'
+                  >
+                    <SelectValue
+                      placeholder='Select sound'
+                      className='text-white'
+                    />
+                  </SelectTrigger>
+                  <SelectContent className='bg-gray-900 text-white border-gray-700'>
+                    {availableSounds.map(sound => (
+                      <SelectItem
+                        key={sound.path}
+                        value={sound.path}
+                        className='text-white bg-gray-900 focus:bg-gray-700'
+                      >
+                        {sound.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <label
+                  htmlFor='firstBeatRate'
+                  className='block text-sm font-medium mb-1'
+                >
+                  First Beat Pitch Multiplier (0.5 - 2.0):{' '}
+                  {firstBeatPlaybackRate.toFixed(2)}x
+                </label>
+                <input
+                  type='range'
+                  id='firstBeatRate'
+                  min='0.5'
+                  max='2.0'
+                  step='0.05'
+                  value={firstBeatPlaybackRate}
+                  onChange={e =>
+                    setFirstBeatPlaybackRate(parseFloat(e.target.value))
+                  }
+                  className='w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer'
+                />
+                <Input
+                  type='number'
+                  min='0.5'
+                  max='2.0'
+                  step='0.05'
+                  value={firstBeatPlaybackRate}
+                  onChange={e =>
+                    setFirstBeatPlaybackRate(parseFloat(e.target.value))
+                  }
+                  className='mt-2 w-1/4 bg-gray-900 text-white border-gray-700'
+                />
+              </div>
+            </div>
+          </section>
+
           <div className='flex mt-8 justify-center'>
             <img
               src={assetPath('logo.png')}

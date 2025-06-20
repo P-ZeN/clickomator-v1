@@ -376,9 +376,14 @@ const Setlist = () => {
   useEffect(() => {
     if (isMobile) return
     const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.key === 'Alt' || e.key === 'AltGraph') && setlist && setlist.songs.length > 0) {
+      if (
+        (e.key === 'Alt' || e.key === 'AltGraph') &&
+        setlist &&
+        setlist.songs.length > 0
+      ) {
         // AltGr = next, Alt = prev
-        const direction: 'next' | 'prev' = e.key === 'AltGraph' ? 'next' : 'prev'
+        const direction: 'next' | 'prev' =
+          e.key === 'AltGraph' ? 'next' : 'prev'
         const now = Date.now()
         if (lastAltPressTime.current && now - lastAltPressTime.current < 400) {
           altPressCount.current += 1
@@ -388,8 +393,14 @@ const Setlist = () => {
         lastAltPressTime.current = now
         if (altTimeout.current) clearTimeout(altTimeout.current)
         altTimeout.current = setTimeout(() => {
-          if (document.activeElement && ['INPUT', 'TEXTAREA'].includes(document.activeElement.tagName)) return
-          const currentIdx = setlist.songs.findIndex(s => s.id === selectedSongId)
+          if (
+            document.activeElement &&
+            ['INPUT', 'TEXTAREA'].includes(document.activeElement.tagName)
+          )
+            return
+          const currentIdx = setlist.songs.findIndex(
+            s => s.id === selectedSongId
+          )
           let nextIdx = currentIdx
           if (direction === 'next') {
             nextIdx = Math.min(currentIdx + 1, setlist.songs.length - 1)
@@ -686,7 +697,9 @@ const Setlist = () => {
                 {setlist.songs.map((song, index) => (
                   <Card
                     key={song.id}
-                    {...(!isMobile ? { ref: el => (songCardRefs.current[index] = el) } : {})}
+                    {...(!isMobile
+                      ? { ref: el => (songCardRefs.current[index] = el) }
+                      : {})}
                     className={`bg-gray-800 border-gray-700 hover:bg-gray-750 transition-colors cursor-pointer ${
                       selectedSongId === song.id ? 'ring-2 ring-green-400' : ''
                     } ${draggedSongId === song.id ? 'opacity-50' : ''}`}

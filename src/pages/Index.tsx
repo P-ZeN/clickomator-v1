@@ -574,7 +574,7 @@ const Index = () => {
               >
                 <a
                   href={assetPath(
-                    'download/Clickomator_V1.1_0.1.1_x64_en-US.msi'
+                    'download/Clickomator_V1.1_0.1.1_x64_fr-FR.zip'
                   )}
                   download
                 >
@@ -588,7 +588,7 @@ const Index = () => {
                 className='border border-white text-white bg-gray-700 hover:text-black hover:bg-white w-full sm:w-auto'
                 asChild
               >
-                <a href={assetPath('download/Clickomator_V1.1.exe')} download>
+                <a href={assetPath('download/Clickomator_V1.1.zip')} download>
                   <Download className='h-5 w-5 mr-2' />
                   Windows Exécutable (.exe)
                 </a>

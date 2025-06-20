@@ -23,6 +23,7 @@ import {
 } from '@/components/ui/select'
 import TempoVisualizer from './TempoVisualizer'
 import BeatGraphic from './BeatGraphic'
+import { assetPath } from '@/utils/assetPath'
 
 // Add this interface for better type checking with vendor prefixes
 interface WindowWithAudioContext extends Window {
@@ -55,6 +56,26 @@ interface SongViewProps {
   panelKey?: number // Add this line
 }
 
+// --- Metronome sound config ---
+const METRONOME_SOUND_PATH_KEY = 'metronomeSoundPath'
+const METRONOME_FIRST_BEAT_RATE_KEY = 'metronomeFirstBeatRate'
+const DEFAULT_SOUND_PATH = assetPath('sounds/click.wav')
+const DEFAULT_FIRST_BEAT_RATE = 1.2
+
+// Helper to load audio sample
+async function loadSound (audioContext, filePath) {
+  try {
+    const response = await fetch(filePath)
+    if (!response.ok)
+      throw new Error(`HTTP error! status: ${response.status} for ${filePath}`)
+    const arrayBuffer = await response.arrayBuffer()
+    return await audioContext.decodeAudioData(arrayBuffer)
+  } catch (error) {
+    console.error(`Error loading sound ${filePath}:`, error)
+    return null
+  }
+}
+
 // Function component declaration
 const SongView: React.FC<SongViewProps> = ({
   song,
@@ -75,6 +96,13 @@ const SongView: React.FC<SongViewProps> = ({
   const [isTauri, setIsTauri] = useState(false) // Added isTauri state
   const [volume, setVolume] = useState(0.3) // Volume state (0.0 to 1.0)
   const [isMuted, setIsMuted] = useState(false) // Mute state
+  const [metronomeSoundPath, setMetronomeSoundPath] =
+    useState(DEFAULT_SOUND_PATH)
+  const [metronomeFirstBeatRate, setMetronomeFirstBeatRate] = useState(
+    DEFAULT_FIRST_BEAT_RATE
+  )
+  const [metronomeSoundBuffer, setMetronomeSoundBuffer] =
+    useState<AudioBuffer | null>(null)
   const intervalRef = useRef<NodeJS.Timeout>()
   const audioContextRef = useRef<AudioContext>()
   const audioElementRef = useRef<HTMLAudioElement | null>(null) // For the wrapper <audio> element
@@ -211,37 +239,69 @@ const SongView: React.FC<SongViewProps> = ({
   ]
   const beatsPerMeasure = parseInt(song.timeSignature.split('/')[0])
 
-  const playClick = useCallback((beatToPlay: number) => {
-    if (!audioContextRef.current) {
-      // Changed condition
-      console.warn(
-        'playClick: AudioContext not ready.' // Updated message
-      )
-      return
-    }
+  // --- Metronome sample state ---
 
-    const oscillator = audioContextRef.current.createOscillator()
-    const gainNode = audioContextRef.current.createGain()
-
-    oscillator.connect(gainNode)
-    // Connect directly to audioContext.destination
-    gainNode.connect(audioContextRef.current.destination) // Changed connection
-
-    oscillator.frequency.setValueAtTime(
-      beatToPlay === 0 ? 1100 : 900,
-      audioContextRef.current.currentTime
-    )
-
-    // Access volume through refs to get current values without dependency
-    const effectiveVolume = volumeRef.current * (isMutedRef.current ? 0 : 1)
-    gainNode.gain.setValueAtTime(
-      effectiveVolume,
-      audioContextRef.current.currentTime
-    )
-
-    oscillator.start(audioContextRef.current.currentTime)
-    oscillator.stop(audioContextRef.current.currentTime + 0.1)
+  // On mount, read settings from localStorage
+  useEffect(() => {
+    const storedPath =
+      localStorage.getItem(METRONOME_SOUND_PATH_KEY) || DEFAULT_SOUND_PATH
+    const storedRate =
+      parseFloat(localStorage.getItem(METRONOME_FIRST_BEAT_RATE_KEY) || '') ||
+      DEFAULT_FIRST_BEAT_RATE
+    setMetronomeSoundPath(storedPath)
+    setMetronomeFirstBeatRate(storedRate)
   }, [])
+
+  // Load sound buffer when path or audioContext changes
+  useEffect(() => {
+    if (audioContextRef.current && metronomeSoundPath) {
+      loadSound(audioContextRef.current, metronomeSoundPath).then(
+        setMetronomeSoundBuffer
+      )
+    }
+  }, [metronomeSoundPath, audioContextRef.current])
+
+  // --- Play sample or fallback ---
+  const playMetronomeSampleOrFallback = useCallback(
+    beatToPlay => {
+      const audioCtx = audioContextRef.current
+      if (!audioCtx) return
+      const effectiveVolume = volumeRef.current * (isMutedRef.current ? 0 : 1)
+      const isFirstBeat = beatToPlay === 0
+      if (metronomeSoundBuffer) {
+        const source = audioCtx.createBufferSource()
+        source.buffer = metronomeSoundBuffer
+        source.playbackRate.value = isFirstBeat ? metronomeFirstBeatRate : 1.0
+        const gainNode = audioCtx.createGain()
+        source.connect(gainNode)
+        gainNode.connect(audioCtx.destination)
+        gainNode.gain.setValueAtTime(effectiveVolume, audioCtx.currentTime)
+        source.start(audioCtx.currentTime)
+      } else {
+        // Fallback: oscillator
+        const oscillator = audioCtx.createOscillator()
+        const gainNode = audioCtx.createGain()
+        oscillator.connect(gainNode)
+        gainNode.connect(audioCtx.destination)
+        oscillator.frequency.setValueAtTime(
+          isFirstBeat ? 1100 * metronomeFirstBeatRate : 900,
+          audioCtx.currentTime
+        )
+        gainNode.gain.setValueAtTime(effectiveVolume, audioCtx.currentTime)
+        oscillator.start(audioCtx.currentTime)
+        oscillator.stop(audioCtx.currentTime + 0.1)
+      }
+    },
+    [metronomeSoundBuffer, metronomeFirstBeatRate]
+  )
+
+  // --- Replace playClick body to use the new function ---
+  const playClick = useCallback(
+    (beatToPlay: number) => {
+      playMetronomeSampleOrFallback(beatToPlay)
+    },
+    [playMetronomeSampleOrFallback]
+  )
 
   const startMetronome = useCallback(() => {
     const setupAndRunMetronome = () => {
