@@ -1,0 +1,68 @@
+name: Deploy Web
+
+# Builds the web (PWA) version of Clickomator and rsyncs `dist/` to
+# ehpad-break.net via SSH whenever main is updated.
+#
+# Required repo secrets:
+#   DEPLOY_SSH_KEY   - private key (PEM, with newlines) authorised on the server
+#   DEPLOY_HOST      - e.g. ehpad-break.net
+#   DEPLOY_USER      - SSH username
+#   DEPLOY_PATH      - absolute remote path, e.g. /var/www/ehpad-break.net/clickomator
+#
+# Optional:
+#   DEPLOY_PORT      - SSH port (defaults to 22)
+
+on:
+  push:
+    branches: [deploy]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-web
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'yarn'
+
+      - name: Install dependencies
+        run: yarn install --frozen-lockfile
+
+      - name: Build web
+        env:
+          VITE_BASE_PATH: /clickomator/
+        run: yarn build
+
+      - name: Configure SSH
+        env:
+          SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_PORT: ${{ secrets.DEPLOY_PORT }}
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          PORT="${DEPLOY_PORT:-22}"
+          ssh-keyscan -p "$PORT" -H "$DEPLOY_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: Deploy with rsync
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+          DEPLOY_PORT: ${{ secrets.DEPLOY_PORT }}
+        run: |
+          PORT="${DEPLOY_PORT:-22}"
+          rsync -avz --delete \
+            -e "ssh -p $PORT -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=yes" \
+            dist/ "${DEPLOY_USER}@${DEPLOY_HOST}:${DEPLOY_PATH}/"

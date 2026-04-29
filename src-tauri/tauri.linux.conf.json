@@ -1,0 +1,30 @@
+{
+    "$schema": "../node_modules/@tauri-apps/cli/schema.json",
+    "tauri": {
+        "windows": [
+            {
+                "fullscreen": true,
+                "height": 800,
+                "width": 1200,
+                "resizable": true,
+                "title": "Clickomator",
+                "decorations": false,
+                "visible": true
+            }
+        ],
+        "bundle": {
+            "targets": [
+                "deb",
+                "appimage",
+                "rpm"
+            ],
+            "deb": {
+                "depends": [
+                    "libwebkit2gtk-4.0-37",
+                    "libgtk-3-0",
+                    "libayatana-appindicator3-1"
+                ]
+            }
+        }
+    }
+}
