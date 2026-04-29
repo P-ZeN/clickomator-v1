@@ -11,7 +11,8 @@
     "preview": "vite preview",
     "tauri": "tauri",
     "devtauri": "npm run tauri dev",
-    "bundle": "tauri build"
+    "bundle": "tauri build",
+    "release": "node scripts/release.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.0",
