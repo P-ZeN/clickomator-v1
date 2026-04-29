@@ -50,8 +50,11 @@ jobs:
         run: |
           mkdir -p ~/.ssh
           chmod 700 ~/.ssh
-          printf '%s\n' "$SSH_KEY" > ~/.ssh/id_ed25519
+          # Strip carriage returns and ensure trailing newline (libcrypto is picky)
+          printf '%s\n' "$SSH_KEY" | tr -d '\r' > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
+          # Sanity-check the key parses correctly before using it
+          ssh-keygen -y -f ~/.ssh/id_ed25519 > /dev/null
           PORT="${DEPLOY_PORT:-22}"
           ssh-keyscan -p "$PORT" -H "$DEPLOY_HOST" >> ~/.ssh/known_hosts 2>/dev/null
 
