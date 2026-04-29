@@ -37,6 +37,8 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y \
             libwebkit2gtk-4.0-dev \
+            libjavascriptcoregtk-4.0-dev \
+            libsoup2.4-dev \
             libgtk-3-dev \
             libayatana-appindicator3-dev \
             librsvg2-dev \
@@ -60,7 +62,49 @@ jobs:
       - name: Install JS deps
         run: yarn install --frozen-lockfile
 
+      - name: Import macOS signing certificate
+        if: matrix.platform == 'macos-latest'
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          KEYCHAIN_PASSWORD: ${{ github.run_id }}-keychain
+        run: |
+          set -euo pipefail
+          # Decode base64 certificate to a temp .p12
+          CERT_PATH="$RUNNER_TEMP/cert.p12"
+          echo "$APPLE_CERTIFICATE" | base64 --decode > "$CERT_PATH"
+
+          # Create a dedicated keychain so we don't pollute the runner's login keychain
+          KEYCHAIN_PATH="$RUNNER_TEMP/build.keychain-db"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security default-keychain -s "$KEYCHAIN_PATH"
+
+          # Import the .p12 (use legacy PKCS12 since we exported with -legacy on WSL)
+          security import "$CERT_PATH" \
+            -k "$KEYCHAIN_PATH" \
+            -P "$APPLE_CERTIFICATE_PASSWORD" \
+            -T /usr/bin/codesign \
+            -T /usr/bin/security
+
+          # Allow codesign to use the key without prompting
+          security set-key-partition-list \
+            -S apple-tool:,apple:,codesign: \
+            -s -k "$KEYCHAIN_PASSWORD" \
+            "$KEYCHAIN_PATH"
+
+          # Sanity: list signing identities
+          security find-identity -v -p codesigning "$KEYCHAIN_PATH"
+
       - name: Build Tauri bundles
+        env:
+          # Tauri 1.x reads these to sign + notarize the macOS bundle automatically.
+          # Empty / unset on non-macOS jobs (no-op).
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: yarn bundle
 
       - name: Stage artifacts with stable names
