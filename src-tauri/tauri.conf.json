@@ -1,79 +1,81 @@
 {
-  "$schema": "../node_modules/@tauri-apps/cli/schema.json",
-  "build": {
-    "beforeBuildCommand": "npm run build",
-    "beforeDevCommand": "npm run dev",
-    "devPath": "http://localhost:8080",
-    "distDir": "../dist"
-  },
-  "package": {
-    "productName": "Clickomator_V1.1",
-    "version": "0.1.1"
-  },
-  "tauri": {
-    "allowlist": {
-      "all": false,
-      "process": {
-        "exit": true
-      },
-      "window": {
-        "all": false,
-        "close": true
-      }
+    "$schema": "../node_modules/@tauri-apps/cli/schema.json",
+    "build": {
+        "beforeBuildCommand": "npm run build",
+        "beforeDevCommand": "npm run dev",
+        "devPath": "http://localhost:8080",
+        "distDir": "../dist"
     },
-    "bundle": {
-      "active": true,
-      "category": "Music",
-      "copyright": "ZeN",
-      "deb": {
-        "depends": []
-      },
-      "externalBin": [],
-      "icon": [
-        "../public/32x32.png",
-        "../public/128x128.png",
-        "../public/128x128@2x.png",
-        "../public/favicon.ico"
-      ],
-      "identifier": "clickomator.v1.1",
-      "longDescription": "",
-      "macOS": {
-        "entitlements": null,
-        "exceptionDomain": "",
-        "frameworks": [],
-        "providerShortName": null,
-        "signingIdentity": null
-      },
-      "resources": [],
-      "shortDescription": "Métronome audio et visuel",
-      "targets": "all",
-      "windows": {
-        "certificateThumbprint": null,
-        "digestAlgorithm": "sha256",
-        "timestampUrl": "",
-        "wix": {
-          "language": "fr-FR"
-        }
-      }
+    "package": {
+        "productName": "Clickomator_V1.1",
+        "version": "0.1.1"
     },
-    "security": {
-      "csp": "default-src 'self' tauri: asset: https://asset.localhost; img-src 'self' asset: https://asset.localhost data:; style-src 'self' 'unsafe-inline' asset: https://asset.localhost; script-src 'self' tauri: asset: https://asset.localhost; connect-src 'self' tauri: asset: https://asset.localhost;"
-    },
-    "updater": {
-      "active": false
-    },
-    "windows": [
-        {
-        "fullscreen": true,
-        "height": 600,
-        "resizable": true,
-        "title": "Clickomator",
-        "width": 800,
-        "decorations": false,
-        "visible": true,
-        "additionalBrowserArgs":
-          " --enable-ui-devtools"
-        }
-    ]
-  }
+    "tauri": {
+        "allowlist": {
+            "all": false,
+            "process": {
+                "exit": true
+            },
+            "window": {
+                "all": false,
+                "close": true,
+                "setFullscreen": true,
+                "setDecorations": true
+            }
+        },
+        "bundle": {
+            "active": true,
+            "category": "Music",
+            "copyright": "ZeN",
+            "deb": {
+                "depends": []
+            },
+            "externalBin": [],
+            "icon": [
+                "icons/32x32.png",
+                "icons/128x128.png",
+                "icons/128x128@2x.png",
+                "icons/icon.icns",
+                "icons/icon.ico"
+            ],
+            "identifier": "clickomator.v1.1",
+            "longDescription": "",
+            "macOS": {
+                "entitlements": null,
+                "exceptionDomain": "",
+                "frameworks": [],
+                "providerShortName": null,
+                "signingIdentity": null
+            },
+            "resources": [],
+            "shortDescription": "Métronome audio et visuel",
+            "targets": "all",
+            "windows": {
+                "certificateThumbprint": null,
+                "digestAlgorithm": "sha256",
+                "timestampUrl": "",
+                "wix": {
+                    "language": "fr-FR"
+                }
+            }
+        },
+        "security": {
+            "csp": "default-src 'self' tauri: asset: https://asset.localhost; img-src 'self' asset: https://asset.localhost data:; style-src 'self' 'unsafe-inline' asset: https://asset.localhost; script-src 'self' tauri: asset: https://asset.localhost; connect-src 'self' tauri: asset: https://asset.localhost;"
+        },
+        "updater": {
+            "active": false
+        },
+        "windows": [
+            {
+                "fullscreen": true,
+                "height": 600,
+                "resizable": true,
+                "title": "Clickomator",
+                "width": 800,
+                "decorations": false,
+                "visible": true,
+                "additionalBrowserArgs": " --enable-ui-devtools"
+            }
+        ]
+    }
 }

@@ -34,6 +34,7 @@ import { Input } from '@/components/ui/input'
 import { useToast } from '@/hooks/use-toast'
 import { useNavigate } from 'react-router-dom'
 import { assetPath } from '@/utils/assetPath'
+import { allDownloads } from '@/utils/downloads'
 
 // Add global type for __TAURI__ to avoid TS error
 declare global {
@@ -565,34 +566,26 @@ const Index = () => {
             <h2 className='text-xl font-semibold text-white mb-4'>
               Téléchargements
             </h2>
-            <div className='flex flex-col sm:flex-row gap-4 justify-center'>
-              <Button
-                variant='outline'
-                size='lg'
-                className='border border-white text-white bg-gray-700 hover:text-black hover:bg-white w-full sm:w-auto'
-                asChild
-              >
-                <a
-                  href={assetPath(
-                    'download/Clickomator_V1.1_0.1.1_x64_fr-FR.zip'
-                  )}
-                  download
+            <div className='flex flex-wrap gap-3 justify-center'>
+              {allDownloads.map((dl) => (
+                <Button
+                  key={dl.href}
+                  variant='outline'
+                  size='lg'
+                  className='border border-white text-white bg-gray-700 hover:text-black hover:bg-white w-full sm:w-auto'
+                  asChild
                 >
-                  <Download className='h-5 w-5 mr-2' />
-                  Windows Installer (.msi)
-                </a>
-              </Button>
-              <Button
-                variant='outline'
-                size='lg'
-                className='border border-white text-white bg-gray-700 hover:text-black hover:bg-white w-full sm:w-auto'
-                asChild
-              >
-                <a href={assetPath('download/Clickomator_V1.1.zip')} download>
-                  <Download className='h-5 w-5 mr-2' />
-                  Windows Exécutable (.exe)
-                </a>
-              </Button>
+                  <a href={dl.href} download>
+                    <Download className='h-5 w-5 mr-2' />
+                    <span className='flex flex-col items-start leading-tight'>
+                      <span>{dl.label}</span>
+                      {dl.hint && (
+                        <span className='text-xs opacity-70'>{dl.hint}</span>
+                      )}
+                    </span>
+                  </a>
+                </Button>
+              ))}
               {/* PWA Install Button */}
               {deferredPrompt && (
                 <Button
