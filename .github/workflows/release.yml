@@ -1,0 +1,146 @@
+name: Release
+
+# Builds Windows / Linux / macOS bundles and publishes them to a GitHub Release
+# whenever a version tag is pushed (e.g. `git tag v0.1.2 && git push --tags`).
+#
+# Stable asset filenames are used so the web app can link to
+# https://github.com/<owner>/<repo>/releases/latest/download/<file>
+# and pick up new versions automatically.
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build (${{ matrix.os_label }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: ubuntu-22.04
+            os_label: linux
+          - platform: windows-latest
+            os_label: windows
+          - platform: macos-latest
+            os_label: macos
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Linux build deps
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.0-dev \
+            libgtk-3-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            libssl-dev \
+            patchelf
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'yarn'
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo build
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: 'src-tauri -> target'
+
+      - name: Install JS deps
+        run: yarn install --frozen-lockfile
+
+      - name: Build Tauri bundles
+        run: yarn bundle
+
+      - name: Stage artifacts with stable names
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p staging
+          BUNDLE=src-tauri/target/release/bundle
+
+          # Linux
+          if [ -d "$BUNDLE/deb" ]; then
+            cp "$BUNDLE"/deb/*.deb           staging/Clickomator-linux-amd64.deb
+          fi
+          if [ -d "$BUNDLE/appimage" ]; then
+            cp "$BUNDLE"/appimage/*.AppImage staging/Clickomator-linux-x86_64.AppImage
+          fi
+          if [ -d "$BUNDLE/rpm" ]; then
+            cp "$BUNDLE"/rpm/*.rpm           staging/Clickomator-linux-x86_64.rpm
+          fi
+
+          # Windows
+          if [ -d "$BUNDLE/msi" ]; then
+            cp "$BUNDLE"/msi/*.msi           staging/Clickomator-windows-x64.msi
+          fi
+
+          # macOS
+          if [ -d "$BUNDLE/dmg" ]; then
+            cp "$BUNDLE"/dmg/*.dmg           staging/Clickomator-macos.dmg
+          fi
+
+          ls -la staging/
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: bundles-${{ matrix.os_label }}
+          path: staging/
+          if-no-files-found: error
+
+  publish:
+    name: Publish GitHub Release
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist-bundles
+
+      - name: Flatten into single release directory
+        run: |
+          mkdir -p release
+          find dist-bundles -type f \( \
+            -name '*.msi' -o \
+            -name '*.deb' -o \
+            -name '*.AppImage' -o \
+            -name '*.rpm' -o \
+            -name '*.dmg' \
+          \) -exec cp {} release/ \;
+          ls -la release/
+
+      - name: Create / update GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release/*
+          generate_release_notes: true
+          fail_on_unmatched_files: true
+          body: |
+            ## Installation
+
+            **Windows** — download the `.msi` and run it.
+
+            **Linux**
+            - **Debian / Ubuntu / Mint:** `.deb` → `sudo apt install ./Clickomator-linux-amd64.deb`
+            - **Any distro (portable):** `.AppImage` → `chmod +x` then run.
+            - **Fedora / RHEL / openSUSE:** `.rpm` → `sudo dnf install ./Clickomator-linux-x86_64.rpm`
+
+            **macOS** — download the `.dmg`, drag to Applications. The first launch may show a Gatekeeper warning because the app is not signed: right-click the app → **Open** → confirm. Subsequent launches work normally.
+
+            ---
+            *Press `Esc` in the app to toggle fullscreen / windowed mode.*
