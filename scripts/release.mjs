@@ -75,15 +75,17 @@ bumpJson('src-tauri/tauri.conf.json', (j) => { j.version = version })
 // Cargo.toml — only replace the [package] version, not dependency versions
 const cargoPath = resolve(repoRoot, 'src-tauri/Cargo.toml')
 const cargo = readFileSync(cargoPath, 'utf8')
-const cargoNew = cargo.replace(
-  /(^\[package\][^[]*?\nversion\s*=\s*)"[^"]*"/m,
-  `$1"${version}"`
-)
-if (cargoNew === cargo) {
-  console.error('Failed to update Cargo.toml [package] version')
+const cargoVersionRe = /(^\[package\][^[]*?\nversion\s*=\s*)"([^"]*)"/m
+const match = cargo.match(cargoVersionRe)
+if (!match) {
+  console.error('Failed to locate Cargo.toml [package] version line')
   process.exit(1)
 }
+const cargoNew = cargo.replace(cargoVersionRe, `$1"${version}"`)
 writeFileSync(cargoPath, cargoNew)
+if (match[2] === version) {
+  console.log(`  Cargo.toml already at ${version}`)
+}
 
 console.log(`✔ Bumped to ${version} in package.json, tauri.conf.json, Cargo.toml`)
 
