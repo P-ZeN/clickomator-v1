@@ -58,9 +58,31 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: 'src-tauri -> target'
+          # Bump this prefix to invalidate the cache (e.g. when fixing icon embedding).
+          prefix-key: 'v2-cargo-icons'
 
       - name: Install JS deps
         run: yarn install --frozen-lockfile
+
+      - name: Regenerate desktop icons from master PNG
+        # Tauri-build embeds the .ico into the Windows .exe and the .icns into
+        # the macOS bundle as resources. Regenerating with the runner's own
+        # `tauri icon` tool guarantees the formats match what `tauri-build`
+        # expects on that platform, avoiding cross-platform .ico/.icns oddities
+        # that lead to fallback/default icons in the title bar and taskbar.
+        shell: bash
+        run: |
+          set -euo pipefail
+          MASTER=src-tauri/icons/icon.png
+          if [ ! -f "$MASTER" ]; then
+            echo "::error::master icon $MASTER not found"
+            exit 1
+          fi
+          echo "Regenerating icons from $MASTER..."
+          npx tauri icon "$MASTER"
+          echo '--- regenerated icons ---'
+          ls -la src-tauri/icons/
+          file src-tauri/icons/icon.ico src-tauri/icons/icon.icns src-tauri/icons/32x32.png src-tauri/icons/128x128.png
 
       - name: Import macOS signing certificate
         if: matrix.platform == 'macos-latest'
