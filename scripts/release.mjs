@@ -91,13 +91,29 @@ console.log(`✔ Bumped to ${version} in package.json, tauri.conf.json, Cargo.to
 
 // 3. Commit, tag, push ------------------------------------------------------
 sh('git', ['add', 'package.json', 'src-tauri/tauri.conf.json', 'src-tauri/Cargo.toml'])
-sh('git', ['commit', '-m', `release: ${tag}`])
+
+// Skip the commit if there's nothing staged (script is idempotent: re-running
+// with the same version just retags + repushes).
+const staged = sh('git', ['diff', '--cached', '--name-only'])
+if (staged) {
+  sh('git', ['commit', '-m', `release: ${tag}`])
+} else {
+  console.log('  No version changes to commit (already at target version)')
+}
+
+// Recreate the tag if it already exists locally so it points at HEAD.
+const tagExists = spawnSync('git', ['rev-parse', '-q', '--verify', `refs/tags/${tag}`], { cwd: repoRoot }).status === 0
+if (tagExists) {
+  console.log(`  Tag ${tag} already exists locally — moving it to HEAD`)
+  sh('git', ['tag', '-d', tag])
+}
 sh('git', ['tag', '-a', tag, '-m', `Release ${tag}`])
 
 console.log(`✔ Committed and tagged ${tag}`)
 console.log('  Pushing branch + tag...')
 
 execFileSync('git', ['push'], { cwd: repoRoot, stdio: 'inherit' })
-execFileSync('git', ['push', 'origin', tag], { cwd: repoRoot, stdio: 'inherit' })
+// Force-push the tag in case the remote already has it from a previous attempt.
+execFileSync('git', ['push', '--force', 'origin', tag], { cwd: repoRoot, stdio: 'inherit' })
 
 console.log(`\n✔ Done. Watch the build: https://github.com/P-ZeN/clickomator-v1/actions`)
