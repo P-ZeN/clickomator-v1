@@ -84,6 +84,24 @@ jobs:
           ls -la src-tauri/icons/
           file src-tauri/icons/icon.ico src-tauri/icons/icon.icns src-tauri/icons/32x32.png src-tauri/icons/128x128.png
 
+      - name: Rebuild icon.ico in BMP/DIB format (Windows shell compat)
+        # `npx tauri icon` writes an .ico whose every sub-image is PNG-compressed.
+        # Windows Explorer's shortcut/Start-Menu icon renderer cannot decode
+        # PNG-encoded sub-images for the small sizes (16/24/32/48), so MSI
+        # shortcuts (Start Menu, Desktop, taskbar pin) fall back to a generic
+        # default icon. Re-encode with ImageMagick: BMP/DIB for the small sizes,
+        # PNG only for the 256x256 slot (which is what Vista+ shell expects).
+        if: matrix.platform == 'windows-latest'
+        shell: bash
+        run: |
+          set -euo pipefail
+          MASTER=src-tauri/icons/icon.png
+          ICO=src-tauri/icons/icon.ico
+          # ImageMagick is preinstalled on windows-latest runners.
+          magick "$MASTER" -define icon:auto-resize=256,48,32,24,16 "$ICO"
+          echo '--- rebuilt icon.ico ---'
+          file "$ICO"
+
       - name: Import macOS signing certificate
         if: matrix.platform == 'macos-latest'
         env:
