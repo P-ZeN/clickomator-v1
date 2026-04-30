@@ -77,12 +77,17 @@ jobs:
           # Strip any stray CR/LF from the password (defensive)
           P12_PASS=$(printf '%s' "$APPLE_CERTIFICATE_PASSWORD" | tr -d '\r\n')
 
-          # Verify the .p12 + password BEFORE touching the keychain (clear error msg)
-          if ! openssl pkcs12 -in "$CERT_PATH" -noout -passin "pass:$P12_PASS" 2>/dev/null; then
+          # Verify the .p12 + password BEFORE touching the keychain (clear error msg).
+          # Try legacy first (-legacy) since that's what Apple's `security` accepts.
+          if openssl pkcs12 -legacy -in "$CERT_PATH" -noout -passin "pass:$P12_PASS" 2>/dev/null; then
+            echo "✓ .p12 verified (legacy PKCS12)"
+          elif openssl pkcs12 -in "$CERT_PATH" -noout -passin "pass:$P12_PASS" 2>/dev/null; then
+            echo "✓ .p12 verified (modern PKCS12)"
+            echo "::warning::PKCS12 is in modern format; macOS 'security' may reject it. Re-export with openssl -legacy."
+          else
             echo "::error::PKCS12 verification failed — APPLE_CERTIFICATE_PASSWORD does not match the .p12 file"
             exit 1
           fi
-          echo "✓ .p12 verified with provided password"
 
           # Create a dedicated keychain
           KEYCHAIN_PATH="$RUNNER_TEMP/build.keychain-db"
