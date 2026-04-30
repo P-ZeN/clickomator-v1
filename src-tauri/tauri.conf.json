@@ -46,7 +46,7 @@
     },
     "productName": "Clickomator V1.1",
     "mainBinaryName": "clickomator",
-    "version": "2.0.0",
+    "version": "2.0.1",
     "identifier": "clickomator.v1.1",
     "plugins": {},
     "app": {
