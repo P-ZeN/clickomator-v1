@@ -20,7 +20,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - platform: ubuntu-22.04
+          - platform: ubuntu-24.04
             os_label: linux
           - platform: windows-latest
             os_label: windows
@@ -32,13 +32,16 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Install Linux build deps
-        if: matrix.platform == 'ubuntu-22.04'
+        # Tauri 2 links against webkit2gtk-4.1 / libsoup-3.0, which are the
+        # versions shipped on Ubuntu 24.04+. Building on 22.04 would fail
+        # because those .pc files don't exist there.
+        if: matrix.platform == 'ubuntu-24.04'
         run: |
           sudo apt-get update
           sudo apt-get install -y \
-            libwebkit2gtk-4.0-dev \
-            libjavascriptcoregtk-4.0-dev \
-            libsoup2.4-dev \
+            libwebkit2gtk-4.1-dev \
+            libjavascriptcoregtk-4.1-dev \
+            libsoup-3.0-dev \
             libgtk-3-dev \
             libayatana-appindicator3-dev \
             librsvg2-dev \
