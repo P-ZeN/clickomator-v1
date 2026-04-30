@@ -28,7 +28,8 @@
             "category": "Music",
             "copyright": "ZeN",
             "deb": {
-                "depends": []
+                "depends": [],
+                "desktopTemplate": "main.desktop"
             },
             "externalBin": [],
             "icon": [

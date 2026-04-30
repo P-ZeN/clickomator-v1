@@ -23,7 +23,8 @@
                     "libwebkit2gtk-4.0-37",
                     "libgtk-3-0",
                     "libayatana-appindicator3-1"
-                ]
+                ],
+                "desktopTemplate": "main.desktop"
             }
         }
     }
