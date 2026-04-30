@@ -70,7 +70,7 @@ function bumpJson(path, mutate) {
 }
 
 bumpJson('package.json', (j) => { j.version = version })
-bumpJson('src-tauri/tauri.conf.json', (j) => { j.package.version = version })
+bumpJson('src-tauri/tauri.conf.json', (j) => { j.version = version })
 
 // Cargo.toml — only replace the [package] version, not dependency versions
 const cargoPath = resolve(repoRoot, 'src-tauri/Cargo.toml')
