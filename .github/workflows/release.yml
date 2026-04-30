@@ -35,6 +35,10 @@ jobs:
         # Tauri 2 links against webkit2gtk-4.1 / libsoup-3.0, which are the
         # versions shipped on Ubuntu 24.04+. Building on 22.04 would fail
         # because those .pc files don't exist there.
+        #
+        # GStreamer runtime packages are installed here so that
+        # linuxdeploy-plugin-gstreamer can copy them (with their dependencies)
+        # into the AppImage, making audio work on any Linux distro.
         if: matrix.platform == 'ubuntu-24.04'
         run: |
           sudo apt-get update
@@ -46,7 +50,15 @@ jobs:
             libayatana-appindicator3-dev \
             librsvg2-dev \
             libssl-dev \
-            patchelf
+            patchelf \
+            gstreamer1.0-plugins-base \
+            gstreamer1.0-plugins-good \
+            gstreamer1.0-plugins-bad \
+            gstreamer1.0-plugins-ugly \
+            gstreamer1.0-libav \
+            gstreamer1.0-alsa \
+            gstreamer1.0-pulseaudio \
+            gstreamer1.0-tools
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -165,6 +177,94 @@ jobs:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: yarn bundle
 
+      - name: Bundle GStreamer plugins into AppImage (Linux only)
+        # Tauri's AppImage bundler ships GStreamer libraries but NOT plugins.
+        # Without plugins, elements like appsink/appsrc/decodebin/autoaudiosink
+        # are unavailable on any system whose host GStreamer version differs from
+        # the build host (ubuntu-24.04 ≈ 1.24). This step uses
+        # linuxdeploy-plugin-gstreamer to copy the runner's GStreamer plugins
+        # (installed in the step above) into the AppImage, making audio work on
+        # any Linux distro regardless of the installed GStreamer version.
+        if: matrix.platform == 'ubuntu-24.04'
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          # ── 1. Download tools ──────────────────────────────────────────────
+          mkdir -p /tmp/linuxdeploy-tools
+          wget -q -O /tmp/linuxdeploy-tools/linuxdeploy-x86_64.AppImage \
+            "https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage"
+          chmod +x /tmp/linuxdeploy-tools/linuxdeploy-x86_64.AppImage
+
+          # The plugin script must be on PATH so linuxdeploy can call it.
+          # Pinned to the continuous release asset (not master branch) to reduce
+          # supply-chain risk while still tracking upstream plugin fixes.
+          wget -q -O /tmp/linuxdeploy-tools/linuxdeploy-plugin-gstreamer.sh \
+            "https://github.com/linuxdeploy/linuxdeploy-plugin-gstreamer/releases/download/continuous/linuxdeploy-plugin-gstreamer.sh"
+          chmod +x /tmp/linuxdeploy-tools/linuxdeploy-plugin-gstreamer.sh
+
+          export PATH="/tmp/linuxdeploy-tools:$PATH"
+
+          # ── 2. Locate and extract the Tauri-built AppImage ─────────────────
+          APPIMAGE_DIR="src-tauri/target/release/bundle/appimage"
+          ORIG_APPIMAGE="$(ls "$APPIMAGE_DIR"/*.AppImage | head -1)"
+          echo "Found AppImage: $ORIG_APPIMAGE"
+
+          # --appimage-extract uses built-in squashfs (no FUSE required)
+          "$ORIG_APPIMAGE" --appimage-extract
+          # Creates ./squashfs-root/ in the current working directory
+
+          # ── 3. Inject GStreamer plugins into the extracted AppDir ──────────
+          # APPIMAGE_EXTRACT_AND_RUN=1 avoids the FUSE requirement for linuxdeploy.
+          # The plugin copies all GStreamer plugins + their library deps from the
+          # runner system into squashfs-root/usr/lib/gstreamer-1.0/ and updates
+          # AppRun to set GST_PLUGIN_PATH / GST_PLUGIN_SYSTEM_PATH at launch.
+          APPIMAGE_EXTRACT_AND_RUN=1 \
+            linuxdeploy-x86_64.AppImage \
+            --appdir squashfs-root \
+            --plugin gstreamer
+
+          # ── 4. Verify essential plugins were actually injected (fail fast) ───
+          echo "--- GStreamer plugins bundled in AppImage ---"
+          PLUGIN_DIR="squashfs-root/usr/lib/gstreamer-1.0"
+          if [ ! -d "$PLUGIN_DIR" ]; then
+            echo "::error::$PLUGIN_DIR directory not found — GStreamer plugin bundling failed!"
+            exit 1
+          fi
+
+          # Check that the specific elements the app requires are present.
+          # libgstapp.so     → appsink, appsrc
+          # libgstplayback.so → decodebin
+          # libgstautodetect.so → autoaudiosink
+          REQUIRED_PLUGINS=(libgstapp.so libgstplayback.so libgstautodetect.so)
+          for plugin in "${REQUIRED_PLUGINS[@]}"; do
+            if [ ! -f "$PLUGIN_DIR/$plugin" ]; then
+              echo "::error::Required GStreamer plugin $plugin NOT found in $PLUGIN_DIR — bundling failed!"
+              exit 1
+            fi
+            echo "  ✔ $plugin"
+          done
+          echo "Total plugins bundled: $(ls "$PLUGIN_DIR"/*.so 2>/dev/null | wc -l)"
+
+          # ── 5. Repack the AppImage ─────────────────────────────────────────
+          ARCH=x86_64 APPIMAGE_EXTRACT_AND_RUN=1 \
+            linuxdeploy-x86_64.AppImage \
+            --appdir squashfs-root \
+            -o appimage
+
+          # linuxdeploy writes the new AppImage to the current directory;
+          # its name comes from the .desktop file inside the AppDir.
+          NEW_APPIMAGE="$(ls ./*.AppImage 2>/dev/null | grep -v '^./linuxdeploy' | head -1)"
+          if [ -z "$NEW_APPIMAGE" ]; then
+            echo "::error::linuxdeploy did not produce an output AppImage!"
+            exit 1
+          fi
+          echo "Repacked AppImage: $NEW_APPIMAGE ($(du -sh "$NEW_APPIMAGE" | cut -f1))"
+
+          # Overwrite the original so the staging step picks it up unchanged.
+          mv "$NEW_APPIMAGE" "$ORIG_APPIMAGE"
+          echo "✔ AppImage updated with GStreamer plugins: $(du -sh "$ORIG_APPIMAGE" | cut -f1)"
+
       - name: Stage artifacts with stable names
         shell: bash
         run: |
@@ -172,11 +272,14 @@ jobs:
           mkdir -p staging
           BUNDLE=src-tauri/target/release/bundle
 
-          # Linux — only ship the AppImage. .deb/.rpm built on ubuntu-24.04
-          # link against glibc 2.39 which isn't available on older distros,
-          # so they aren't portable. The AppImage bundles its own runtime.
+          # Linux — ship the AppImage (now with bundled GStreamer plugins so it
+          # works on any recent x86_64 Linux distro) and the .deb for
+          # apt-managed installs on Ubuntu/Debian-based systems.
           if [ -d "$BUNDLE/appimage" ]; then
             cp "$BUNDLE"/appimage/*.AppImage staging/Clickomator-linux-x86_64.AppImage
+          fi
+          if [ -d "$BUNDLE/deb" ]; then
+            cp "$BUNDLE"/deb/*.deb staging/Clickomator-linux-amd64.deb
           fi
 
           # Windows
@@ -216,6 +319,7 @@ jobs:
           find dist-bundles -type f \( \
             -name '*.msi' -o \
             -name '*.AppImage' -o \
+            -name '*.deb' -o \
             -name '*.dmg' \
           \) -exec cp {} release/ \;
           ls -la release/
@@ -231,12 +335,19 @@ jobs:
 
             **Windows** — download the `.msi` and run it.
 
-            **Linux** — download the `.AppImage`, then:
+            **Linux (Ubuntu / Debian and derivatives)** — the easiest path:
+            ```
+            sudo apt install ./Clickomator-linux-amd64.deb
+            ```
+            `apt` will pull in GStreamer and all other dependencies automatically.
+
+            **Linux (other distros / universal)** — download the `.AppImage`:
             ```
             chmod +x Clickomator-linux-x86_64.AppImage
             ./Clickomator-linux-x86_64.AppImage
             ```
-            The AppImage bundles its own runtime so it works on any recent x86_64 Linux distro.
+            The AppImage bundles GStreamer plugins so audio works out-of-the-box
+            on any x86_64 Linux distro, regardless of the system GStreamer version.
 
             **macOS** — download the `.dmg`, drag to Applications. The first launch may show a Gatekeeper warning because the app is not signed: right-click the app → **Open** → confirm. Subsequent launches work normally.
 

@@ -24,6 +24,11 @@ export const windowsDownloads: DownloadLink[] = [
 
 export const linuxDownloads: DownloadLink[] = [
   {
+    label: 'Linux .deb (Ubuntu / Debian)',
+    href: `${RELEASES_BASE}/Clickomator-linux-amd64.deb`,
+    hint: 'sudo apt install ./Clickomator-linux-amd64.deb'
+  },
+  {
     label: 'Linux .AppImage (universal)',
     href: `${RELEASES_BASE}/Clickomator-linux-x86_64.AppImage`,
     hint: 'chmod +x ./Clickomator-linux-x86_64.AppImage && ./Clickomator-linux-x86_64.AppImage'
