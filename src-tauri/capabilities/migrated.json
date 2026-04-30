@@ -1,0 +1,16 @@
+{
+  "identifier": "migrated",
+  "description": "permissions that were migrated from v1",
+  "local": true,
+  "windows": [
+    "main"
+  ],
+  "permissions": [
+    "core:default",
+    "core:window:allow-close",
+    "core:window:allow-set-decorations",
+    "core:window:allow-set-fullscreen",
+    "process:allow-exit",
+    "process:default"
+  ]
+}

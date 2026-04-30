@@ -36,10 +36,10 @@ import { useNavigate } from 'react-router-dom'
 import { assetPath } from '@/utils/assetPath'
 import { allDownloads } from '@/utils/downloads'
 
-// Add global type for __TAURI__ to avoid TS error
+// Add global type for __TAURI_INTERNALS__ to avoid TS error
 declare global {
   interface Window {
-    __TAURI__?: unknown
+    __TAURI_INTERNALS__?: unknown
   }
 }
 
@@ -75,7 +75,7 @@ const Index = () => {
   useEffect(() => {
     loadSetlists()
     // Check if running in Tauri
-    const tauriEnv = !!window.__TAURI__
+    const tauriEnv = !!window.__TAURI_INTERNALS__
     setIsTauri(tauriEnv)
 
     // Determine if download section should be shown
@@ -254,12 +254,12 @@ const Index = () => {
 
   // Function to close the app (Tauri specific)
   const quitApp = async () => {
-    if (window.__TAURI__) {
+    if (window.__TAURI_INTERNALS__) {
       try {
         console.log(
           'Attempting to dynamically import @tauri-apps/api/process...'
         )
-        const { exit } = await import('@tauri-apps/api/process')
+        const { exit } = await import('@tauri-apps/plugin-process')
         console.log('Successfully imported. Calling exit(0)...')
         await exit(0) // Use dynamically imported exit function
         console.log('exit(0) called successfully.')

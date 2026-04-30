@@ -154,7 +154,7 @@ jobs:
 
       - name: Build Tauri bundles
         env:
-          # Tauri 1.x reads these to sign + notarize the macOS bundle automatically.
+          # Tauri reads these to sign + notarize the macOS bundle automatically.
           # Empty / unset on non-macOS jobs (no-op).
           APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
           APPLE_ID: ${{ secrets.APPLE_ID }}

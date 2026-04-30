@@ -381,7 +381,7 @@ const SongView: React.FC<SongViewProps> = ({
     setTitleValue(song.title)
     setTempoValue(song.tempo.toString())
     // Check if running in Tauri
-    if (window.__TAURI__) {
+    if ((window as unknown as { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__) {
       setIsTauri(true)
     }
     if (isPlaying) {

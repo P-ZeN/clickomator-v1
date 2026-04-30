@@ -1,6 +1,6 @@
 {
     "$schema": "../node_modules/@tauri-apps/cli/schema.json",
-    "tauri": {
+    "app": {
         "windows": [
             {
                 "fullscreen": true,
@@ -11,16 +11,18 @@
                 "decorations": false,
                 "visible": true
             }
+        ]
+    },
+    "bundle": {
+        "targets": [
+            "deb",
+            "appimage",
+            "rpm"
         ],
-        "bundle": {
-            "targets": [
-                "deb",
-                "appimage",
-                "rpm"
-            ],
+        "linux": {
             "deb": {
                 "depends": [
-                    "libwebkit2gtk-4.0-37",
+                    "libwebkit2gtk-4.1-0",
                     "libgtk-3-0",
                     "libayatana-appindicator3-1"
                 ],
@@ -29,3 +31,4 @@
         }
     }
 }
+

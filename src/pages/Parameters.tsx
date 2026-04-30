@@ -13,10 +13,10 @@ import {
 } from '@/components/ui/select'
 import { Input } from '@/components/ui/input'
 
-// Add global type for __TAURI__ to avoid TS error
+// Add global type for __TAURI_INTERNALS__ to avoid TS error
 declare global {
   interface Window {
-    __TAURI__?: unknown
+    __TAURI_INTERNALS__?: unknown
   }
 }
 
@@ -48,7 +48,7 @@ const Parameters = () => {
 
   useEffect(() => {
     // Check if running in Tauri
-    if (window.__TAURI__) {
+    if (window.__TAURI_INTERNALS__) {
       setIsTauri(true)
     }
 

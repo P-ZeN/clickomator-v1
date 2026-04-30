@@ -11,4 +11,4 @@ Type=Application
 {{#if mime_type}}
 MimeType={{mime_type}}
 {{/if}}
-StartupWMClass=clickomator-v1-1
+StartupWMClass={{exec}}

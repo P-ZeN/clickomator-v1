@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
-import { appWindow } from '@tauri-apps/api/window'
+import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow'
+const appWindow = getCurrentWebviewWindow()
 
 const isTauri = (): boolean =>
   typeof window !== 'undefined' && '__TAURI_IPC__' in window
