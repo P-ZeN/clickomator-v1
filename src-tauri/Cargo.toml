@@ -1,6 +1,6 @@
 [package]
 name = "clickomator"
-version = "2.0.1"
+version = "2.0.2"
 description = "Métronome audio et visuel"
 authors = ["ZeN"]
 license = ""
