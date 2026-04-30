@@ -74,17 +74,27 @@ jobs:
           CERT_PATH="$RUNNER_TEMP/cert.p12"
           echo "$APPLE_CERTIFICATE" | base64 --decode > "$CERT_PATH"
 
-          # Create a dedicated keychain so we don't pollute the runner's login keychain
+          # Strip any stray CR/LF from the password (defensive)
+          P12_PASS=$(printf '%s' "$APPLE_CERTIFICATE_PASSWORD" | tr -d '\r\n')
+
+          # Verify the .p12 + password BEFORE touching the keychain (clear error msg)
+          if ! openssl pkcs12 -in "$CERT_PATH" -noout -passin "pass:$P12_PASS" 2>/dev/null; then
+            echo "::error::PKCS12 verification failed — APPLE_CERTIFICATE_PASSWORD does not match the .p12 file"
+            exit 1
+          fi
+          echo "✓ .p12 verified with provided password"
+
+          # Create a dedicated keychain
           KEYCHAIN_PATH="$RUNNER_TEMP/build.keychain-db"
           security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
           security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
           security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
           security default-keychain -s "$KEYCHAIN_PATH"
 
-          # Import the .p12 (use legacy PKCS12 since we exported with -legacy on WSL)
+          # Import the .p12 with the cleaned password
           security import "$CERT_PATH" \
             -k "$KEYCHAIN_PATH" \
-            -P "$APPLE_CERTIFICATE_PASSWORD" \
+            -P "$P12_PASS" \
             -T /usr/bin/codesign \
             -T /usr/bin/security
 
