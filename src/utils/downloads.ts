@@ -24,17 +24,9 @@ export const windowsDownloads: DownloadLink[] = [
 
 export const linuxDownloads: DownloadLink[] = [
   {
-    label: 'Linux .deb (Debian / Ubuntu)',
-    href: `${RELEASES_BASE}/Clickomator-linux-amd64.deb`
-  },
-  {
-    label: 'Linux .AppImage (portable)',
+    label: 'Linux .AppImage (universal)',
     href: `${RELEASES_BASE}/Clickomator-linux-x86_64.AppImage`,
-    hint: 'chmod +x then run'
-  },
-  {
-    label: 'Linux .rpm (Fedora / RHEL)',
-    href: `${RELEASES_BASE}/Clickomator-linux-x86_64.rpm`
+    hint: 'chmod +x ./Clickomator-linux-x86_64.AppImage && ./Clickomator-linux-x86_64.AppImage'
   }
 ]
 

@@ -172,15 +172,11 @@ jobs:
           mkdir -p staging
           BUNDLE=src-tauri/target/release/bundle
 
-          # Linux
-          if [ -d "$BUNDLE/deb" ]; then
-            cp "$BUNDLE"/deb/*.deb           staging/Clickomator-linux-amd64.deb
-          fi
+          # Linux — only ship the AppImage. .deb/.rpm built on ubuntu-24.04
+          # link against glibc 2.39 which isn't available on older distros,
+          # so they aren't portable. The AppImage bundles its own runtime.
           if [ -d "$BUNDLE/appimage" ]; then
             cp "$BUNDLE"/appimage/*.AppImage staging/Clickomator-linux-x86_64.AppImage
-          fi
-          if [ -d "$BUNDLE/rpm" ]; then
-            cp "$BUNDLE"/rpm/*.rpm           staging/Clickomator-linux-x86_64.rpm
           fi
 
           # Windows
@@ -219,9 +215,7 @@ jobs:
           mkdir -p release
           find dist-bundles -type f \( \
             -name '*.msi' -o \
-            -name '*.deb' -o \
             -name '*.AppImage' -o \
-            -name '*.rpm' -o \
             -name '*.dmg' \
           \) -exec cp {} release/ \;
           ls -la release/
@@ -237,10 +231,12 @@ jobs:
 
             **Windows** — download the `.msi` and run it.
 
-            **Linux**
-            - **Debian / Ubuntu / Mint:** `.deb` → `sudo apt install ./Clickomator-linux-amd64.deb`
-            - **Any distro (portable):** `.AppImage` → `chmod +x` then run.
-            - **Fedora / RHEL / openSUSE:** `.rpm` → `sudo dnf install ./Clickomator-linux-x86_64.rpm`
+            **Linux** — download the `.AppImage`, then:
+            ```
+            chmod +x Clickomator-linux-x86_64.AppImage
+            ./Clickomator-linux-x86_64.AppImage
+            ```
+            The AppImage bundles its own runtime so it works on any recent x86_64 Linux distro.
 
             **macOS** — download the `.dmg`, drag to Applications. The first launch may show a Gatekeeper warning because the app is not signed: right-click the app → **Open** → confirm. Subsequent launches work normally.
 

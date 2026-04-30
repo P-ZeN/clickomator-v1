@@ -15,9 +15,7 @@
     },
     "bundle": {
         "targets": [
-            "deb",
-            "appimage",
-            "rpm"
+            "appimage"
         ],
         "linux": {
             "deb": {
