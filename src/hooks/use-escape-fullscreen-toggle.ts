@@ -52,4 +52,4 @@ export function useEscapeFullscreenToggle(): void {
       cleanup?.()
     }
   }, [])
-}
+} 
