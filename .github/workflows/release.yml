@@ -197,10 +197,12 @@ jobs:
           chmod +x /tmp/linuxdeploy-tools/linuxdeploy-x86_64.AppImage
 
           # The plugin script must be on PATH so linuxdeploy can call it.
-          # Pinned to the continuous release asset (not master branch) to reduce
-          # supply-chain risk while still tracking upstream plugin fixes.
+          # The linuxdeploy-plugin-gstreamer repo has no GitHub Releases, so we
+          # pin to a specific commit SHA on master via raw.githubusercontent.com
+          # for supply-chain safety (bump deliberately when needed).
+          GST_PLUGIN_SHA=2a2e67491c32995a3f279ad0ecbe77abd512b42a
           wget -q -O /tmp/linuxdeploy-tools/linuxdeploy-plugin-gstreamer.sh \
-            "https://github.com/linuxdeploy/linuxdeploy-plugin-gstreamer/releases/download/continuous/linuxdeploy-plugin-gstreamer.sh"
+            "https://raw.githubusercontent.com/linuxdeploy/linuxdeploy-plugin-gstreamer/${GST_PLUGIN_SHA}/linuxdeploy-plugin-gstreamer.sh"
           chmod +x /tmp/linuxdeploy-tools/linuxdeploy-plugin-gstreamer.sh
 
           export PATH="/tmp/linuxdeploy-tools:$PATH"
