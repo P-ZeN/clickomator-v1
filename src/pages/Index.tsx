@@ -10,6 +10,7 @@ import {
   X, // Added X icon for quit button
   Settings // Added Settings icon
 } from 'lucide-react' // Added icons
+import { toggleTauriFullscreen } from '@/hooks/use-escape-fullscreen-toggle'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
@@ -339,14 +340,26 @@ const Index = () => {
 
             {/* Container for top-right button */}
             {isTauri ? (
-              <Button
-                variant='outline'
-                size='icon'
-                onClick={quitApp}
-                className='text-white border-white bg-gray-950 hover:bg-gray-700'
-              >
-                <X className='h-5 w-5' />
-              </Button>
+              <>
+                {/* Toggle Tauri fullscreen / windowed (same as Esc) */}
+                <Button
+                  variant='outline'
+                  size='icon'
+                  onClick={() => void toggleTauriFullscreen()}
+                  className='text-white border-white bg-gray-950 hover:bg-gray-700'
+                  title='Plein écran / fenêtré (Esc)'
+                >
+                  <Minimize className='h-5 w-5' />
+                </Button>
+                <Button
+                  variant='outline'
+                  size='icon'
+                  onClick={quitApp}
+                  className='text-white border-white bg-gray-950 hover:bg-gray-700'
+                >
+                  <X className='h-5 w-5' />
+                </Button>
+              </>
             ) : (
               <Button
                 variant='outline'

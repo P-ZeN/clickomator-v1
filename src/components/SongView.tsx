@@ -23,6 +23,7 @@ import {
 } from '@/components/ui/select'
 import TempoVisualizer from './TempoVisualizer'
 import BeatGraphic from './BeatGraphic'
+import { toggleTauriFullscreen } from '@/hooks/use-escape-fullscreen-toggle'
 import { assetPath } from '@/utils/assetPath'
 
 // Add this interface for better type checking with vendor prefixes
@@ -96,11 +97,21 @@ const SongView: React.FC<SongViewProps> = ({
   const [isTauri, setIsTauri] = useState(false) // Added isTauri state
   const [volume, setVolume] = useState(0.3) // Volume state (0.0 to 1.0)
   const [isMuted, setIsMuted] = useState(false) // Mute state
-  const [metronomeSoundPath, setMetronomeSoundPath] =
-    useState(DEFAULT_SOUND_PATH)
-  const [metronomeFirstBeatRate, setMetronomeFirstBeatRate] = useState(
-    DEFAULT_FIRST_BEAT_RATE
+  // Initialise from localStorage so that the very first buffer-load effect
+  // pass picks up the user's chosen sound. Previously these defaulted, then
+  // were overwritten by a separate mount effect, but the buffer-load effect
+  // depended on `audioContextRef.current` (a ref) which never re-triggers it,
+  // so the buffer for the chosen sound was never loaded and playback fell
+  // through to the oscillator fallback.
+  const [metronomeSoundPath, setMetronomeSoundPath] = useState(
+    () =>
+      localStorage.getItem(METRONOME_SOUND_PATH_KEY) || DEFAULT_SOUND_PATH
   )
+  const [metronomeFirstBeatRate, setMetronomeFirstBeatRate] = useState(() => {
+    const stored = localStorage.getItem(METRONOME_FIRST_BEAT_RATE_KEY)
+    const parsed = stored ? parseFloat(stored) : NaN
+    return Number.isFinite(parsed) ? parsed : DEFAULT_FIRST_BEAT_RATE
+  })
   const [metronomeSoundBuffer, setMetronomeSoundBuffer] =
     useState<AudioBuffer | null>(null)
   const intervalRef = useRef<NodeJS.Timeout>()
@@ -241,25 +252,47 @@ const SongView: React.FC<SongViewProps> = ({
 
   // --- Metronome sample state ---
 
-  // On mount, read settings from localStorage
+  // Re-read sound settings from localStorage whenever the route brings the
+  // SongView back into focus. The Parameters page writes through to
+  // localStorage but doesn't share state, so without this the user's choice
+  // wouldn't be picked up until a full page reload.
   useEffect(() => {
-    const storedPath =
-      localStorage.getItem(METRONOME_SOUND_PATH_KEY) || DEFAULT_SOUND_PATH
-    const storedRate =
-      parseFloat(localStorage.getItem(METRONOME_FIRST_BEAT_RATE_KEY) || '') ||
-      DEFAULT_FIRST_BEAT_RATE
-    setMetronomeSoundPath(storedPath)
-    setMetronomeFirstBeatRate(storedRate)
-  }, [])
-
-  // Load sound buffer when path or audioContext changes
-  useEffect(() => {
-    if (audioContextRef.current && metronomeSoundPath) {
-      loadSound(audioContextRef.current, metronomeSoundPath).then(
-        setMetronomeSoundBuffer
+    const refreshFromStorage = () => {
+      const storedPath =
+        localStorage.getItem(METRONOME_SOUND_PATH_KEY) || DEFAULT_SOUND_PATH
+      const storedRateRaw = localStorage.getItem(METRONOME_FIRST_BEAT_RATE_KEY)
+      const storedRate = storedRateRaw ? parseFloat(storedRateRaw) : NaN
+      setMetronomeSoundPath(prev => (prev === storedPath ? prev : storedPath))
+      setMetronomeFirstBeatRate(prev =>
+        Number.isFinite(storedRate) && storedRate !== prev ? storedRate : prev
       )
     }
-  }, [metronomeSoundPath, audioContextRef.current])
+    refreshFromStorage()
+    window.addEventListener('focus', refreshFromStorage)
+    return () => window.removeEventListener('focus', refreshFromStorage)
+  }, [])
+
+  // Load (or reload) the audio buffer whenever the chosen sound changes.
+  // We lazily create the AudioContext here too, because the previous design
+  // depended on a ref being set elsewhere — refs don't re-trigger effects, so
+  // the very first load silently never happened and the metronome fell back
+  // to the oscillator regardless of the user's selection.
+  useEffect(() => {
+    if (!metronomeSoundPath) return
+    if (!audioContextRef.current) {
+      const global = window as WindowWithAudioContext
+      const Ctor = global.AudioContext || global.webkitAudioContext
+      if (!Ctor) return
+      audioContextRef.current = new Ctor()
+    }
+    let cancelled = false
+    loadSound(audioContextRef.current, metronomeSoundPath).then(buffer => {
+      if (!cancelled) setMetronomeSoundBuffer(buffer)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [metronomeSoundPath])
 
   // --- Play sample or fallback ---
   const playMetronomeSampleOrFallback = useCallback(
@@ -803,7 +836,19 @@ const SongView: React.FC<SongViewProps> = ({
     >
       <div className='absolute top-4 right-4 z-10'>
         {/* Container for top-right button */}
-        {!isTauri && ( // Conditionally render fullscreen button
+        {isTauri ? (
+          // Tauri: toggle the OS-level fullscreen (with decorations) so the
+          // user can move/close the window. Same action as the Esc key.
+          <Button
+            variant='outline'
+            size='icon'
+            onClick={() => void toggleTauriFullscreen()}
+            className='text-white border-white bg-gray-800 hover:bg-gray-700'
+            title='Plein écran / fenêtré (Esc)'
+          >
+            <Minimize className='h-5 w-5' />
+          </Button>
+        ) : (
           <Button
             variant='outline'
             size='icon'
