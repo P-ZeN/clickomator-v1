@@ -1,0 +1,35 @@
+# SPA fallback for the React Router app deployed at https://ehpad-break.net/clickomator/
+#
+# Vite copies the contents of /public verbatim into /dist on build, so this
+# file ends up at /clickomator/.htaccess on the server. Apache then rewrites
+# any deep-link request that doesn't correspond to a real file/directory to
+# the SPA's index.html, letting React Router handle the route client-side.
+#
+# Without this, refreshing on /clickomator/setlist/abc returns Apache's 404
+# because no such file exists on disk.
+
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteBase /clickomator/
+
+  # Don't rewrite real files (assets, sw.js, manifest, sounds, …) or dirs.
+  RewriteCond %{REQUEST_FILENAME} -f [OR]
+  RewriteCond %{REQUEST_FILENAME} -d
+  RewriteRule ^ - [L]
+
+  # Don't rewrite the service-worker registration or workbox files: they
+  # must keep their real Content-Type (JavaScript), not text/html.
+  RewriteRule ^(sw\.js|workbox-.*\.js|registerSW\.js|manifest\.webmanifest)$ - [L]
+
+  # Everything else → SPA entry point.
+  RewriteRule ^ index.html [L]
+</IfModule>
+
+# Make sure index.html is never cached, so a deploy is picked up immediately.
+<IfModule mod_headers.c>
+  <FilesMatch "index\.html$">
+    Header set Cache-Control "no-cache, no-store, must-revalidate"
+    Header set Pragma "no-cache"
+    Header set Expires "0"
+  </FilesMatch>
+</IfModule>
