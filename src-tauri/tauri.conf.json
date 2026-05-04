@@ -39,7 +39,9 @@
         "shortDescription": "Métronome audio et visuel",
         "linux": {
             "deb": {
-                "depends": [],
+                "depends": [
+                    "libasound2"
+                ],
                 "desktopTemplate": "main.desktop"
             }
         }

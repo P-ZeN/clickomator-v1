@@ -20,6 +20,12 @@ serde_json = "1.0"
 serde = { version = "1.0", features = ["derive"] }
 tauri = { version = "2", features = [] }
 tauri-plugin-process = "2"
+# Cross-platform MIDI output for the metronome's MIDI clock feature.
+# Linux backend: ALSA (requires libasound2-dev at build, libasound2 at runtime).
+midir = "0.11"
+# Cross-platform wake-lock so the host PC doesn't go to sleep mid-performance.
+# Linux: tries logind / GNOME / Freedesktop ScreenSaver D-Bus services.
+keepawake = "0.6"
 
 [features]
 # this feature is used for production builds or when `devPath` points to the filesystem and the built-in dev server is disabled.

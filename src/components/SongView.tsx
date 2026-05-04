@@ -24,6 +24,7 @@ import {
 import TempoVisualizer from './TempoVisualizer'
 import BeatGraphic from './BeatGraphic'
 import { toggleTauriFullscreen } from '@/hooks/use-escape-fullscreen-toggle'
+import { acquireWakeLock, releaseWakeLock } from '@/utils/wakeLock'
 import { assetPath } from '@/utils/assetPath'
 
 // Add this interface for better type checking with vendor prefixes
@@ -407,6 +408,22 @@ const SongView: React.FC<SongViewProps> = ({
       } else {
         midiService.stopClock()
       }
+    }
+  }, [isPlaying])
+
+  // Hold a system wake-lock while playing so the host doesn't sleep / dim
+  // mid-performance. Tauri path uses a native power-management assertion;
+  // browser path uses the Screen Wake Lock API where supported.
+  useEffect(() => {
+    if (isPlaying) {
+      void acquireWakeLock()
+    } else {
+      void releaseWakeLock()
+    }
+    return () => {
+      // Always release on unmount so we don't leak the assertion if the
+      // component disappears while still "playing".
+      void releaseWakeLock()
     }
   }, [isPlaying])
 

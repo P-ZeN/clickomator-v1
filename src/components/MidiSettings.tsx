@@ -9,7 +9,7 @@ import {
   SelectValue
 } from '@/components/ui/select'
 import { Label } from '@/components/ui/label'
-import midiService from '@/utils/midiService'
+import midiService, { MidiOutputInfo } from '@/utils/midiService'
 
 interface MidiSettingsProps {
   tempo?: number
@@ -22,7 +22,7 @@ const MidiSettings: React.FC<MidiSettingsProps> = ({
 }) => {
   const [isMidiEnabled, setIsMidiEnabled] = useState(false)
   const [isInitialized, setIsInitialized] = useState(false)
-  const [midiOutputs, setMidiOutputs] = useState<WebMidi.MIDIOutput[]>([])
+  const [midiOutputs, setMidiOutputs] = useState<MidiOutputInfo[]>([])
   const [selectedOutputId, setSelectedOutputId] = useState<string>('')
 
   // Initialize MIDI on component mount
@@ -76,13 +76,13 @@ const MidiSettings: React.FC<MidiSettingsProps> = ({
     }
   }
 
-  const handleOutputChange = (value: string) => {
+  const handleOutputChange = async (value: string) => {
     setSelectedOutputId(value)
 
     // Save the selected output to localStorage
     localStorage.setItem('midi-output-id', value)
 
-    const success = midiService.selectOutput(value)
+    const success = await midiService.selectOutput(value)
 
     // If successfully selected an output and we're enabled and playing, start the clock
     if (success && isMidiEnabled && isPlaying) {
@@ -99,7 +99,7 @@ const MidiSettings: React.FC<MidiSettingsProps> = ({
 
     if (savedOutputId) {
       setSelectedOutputId(savedOutputId)
-      midiService.selectOutput(savedOutputId)
+      void midiService.selectOutput(savedOutputId)
     }
   }, [isInitialized])
   if (!isInitialized) {
