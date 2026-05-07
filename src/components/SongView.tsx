@@ -115,7 +115,32 @@ const SongView: React.FC<SongViewProps> = ({
   })
   const [metronomeSoundBuffer, setMetronomeSoundBuffer] =
     useState<AudioBuffer | null>(null)
-  const intervalRef = useRef<NodeJS.Timeout>()
+  // ── Lookahead scheduler state ────────────────────────────────────────
+  // Replaces the old setInterval-based metronome, which was unreliable on
+  // mobile / backgrounded WebViews and drifted on long sessions because it
+  // played each click at `audioCtx.currentTime` (i.e. "whenever JS happens
+  // to wake up").
+  //
+  // The Chris Wilson "Tale of Two Clocks" pattern: a slow imprecise timer
+  // (~25 ms) only schedules audio events on the audio thread up to
+  // SCHEDULE_AHEAD_TIME seconds in advance. The browser's audio thread then
+  // plays each scheduled `source.start(t)` at exactly time `t`, regardless
+  // of when the JS scheduler next wakes up. Result: sub-ms accurate clicks
+  // with no drift, and audio still plays even if the JS thread stalls for
+  // up to SCHEDULE_AHEAD_TIME seconds.
+  const LOOKAHEAD_INTERVAL_MS = 25
+  const SCHEDULE_AHEAD_TIME_S = 0.1
+  const schedulerTimerRef = useRef<NodeJS.Timeout | null>(null)
+  const nextBeatTimeRef = useRef<number>(0) // audioCtx time of next beat
+  const nextBeatIndexRef = useRef<number>(0) // 0..beatsPerMeasure-1
+  // Queue of scheduled-but-not-yet-played beats; the rAF loop reads from
+  // this to advance the UI in sync with the audio.
+  const scheduledQueueRef = useRef<Array<{ time: number; beat: number }>>([])
+  const uiRafRef = useRef<number | null>(null)
+  // Live refs for values the scheduler reads on every tick — keeps the
+  // scheduler closure stable and lets tempo changes take effect immediately.
+  const tempoRef = useRef<number>(120)
+  const beatsPerMeasureRef = useRef<number>(4)
   const audioContextRef = useRef<AudioContext>()
   const audioElementRef = useRef<HTMLAudioElement | null>(null) // For the wrapper <audio> element
   const mediaStreamDestinationRef =
@@ -295,9 +320,12 @@ const SongView: React.FC<SongViewProps> = ({
     }
   }, [metronomeSoundPath])
 
-  // --- Play sample or fallback ---
-  const playMetronomeSampleOrFallback = useCallback(
-    beatToPlay => {
+  // --- Schedule one click at an exact audio-clock time ---
+  // `time` is an absolute timestamp on `audioCtx.currentTime`. The audio
+  // thread plays it at exactly that moment; never use `audioCtx.currentTime`
+  // here, that would defeat the whole point of the lookahead scheduler.
+  const scheduleClickAtTime = useCallback(
+    (beatToPlay: number, time: number) => {
       const audioCtx = audioContextRef.current
       if (!audioCtx) return
       const effectiveVolume = volumeRef.current * (isMutedRef.current ? 0 : 1)
@@ -309,54 +337,94 @@ const SongView: React.FC<SongViewProps> = ({
         const gainNode = audioCtx.createGain()
         source.connect(gainNode)
         gainNode.connect(audioCtx.destination)
-        gainNode.gain.setValueAtTime(effectiveVolume, audioCtx.currentTime)
-        source.start(audioCtx.currentTime)
+        gainNode.gain.setValueAtTime(effectiveVolume, time)
+        source.start(time)
       } else {
-        // Fallback: oscillator
+        // Fallback: oscillator (no sample loaded yet)
         const oscillator = audioCtx.createOscillator()
         const gainNode = audioCtx.createGain()
         oscillator.connect(gainNode)
         gainNode.connect(audioCtx.destination)
         oscillator.frequency.setValueAtTime(
           isFirstBeat ? 1100 * metronomeFirstBeatRate : 900,
-          audioCtx.currentTime
+          time
         )
-        gainNode.gain.setValueAtTime(effectiveVolume, audioCtx.currentTime)
-        oscillator.start(audioCtx.currentTime)
-        oscillator.stop(audioCtx.currentTime + 0.1)
+        gainNode.gain.setValueAtTime(effectiveVolume, time)
+        oscillator.start(time)
+        oscillator.stop(time + 0.1)
       }
     },
     [metronomeSoundBuffer, metronomeFirstBeatRate]
   )
 
-  // --- Replace playClick body to use the new function ---
-  const playClick = useCallback(
-    (beatToPlay: number) => {
-      playMetronomeSampleOrFallback(beatToPlay)
-    },
-    [playMetronomeSampleOrFallback]
-  )
+  // Keep tempo / time-signature live refs in sync — read by the scheduler
+  // tick on every wake-up so changes apply at the very next beat without
+  // restarting the metronome.
+  useEffect(() => {
+    tempoRef.current = song.tempo
+  }, [song.tempo])
+  useEffect(() => {
+    beatsPerMeasureRef.current = beatsPerMeasure
+  }, [beatsPerMeasure])
+
+  // --- The lookahead scheduler tick ---
+  // Schedules every beat that falls within the next SCHEDULE_AHEAD_TIME_S
+  // seconds. Cheap: at 200 BPM that's ~1 beat per tick.
+  const schedulerTick = useCallback(() => {
+    const audioCtx = audioContextRef.current
+    if (!audioCtx) return
+    const horizon = audioCtx.currentTime + SCHEDULE_AHEAD_TIME_S
+    while (nextBeatTimeRef.current < horizon) {
+      const beat = nextBeatIndexRef.current
+      const time = nextBeatTimeRef.current
+      scheduleClickAtTime(beat, time)
+      scheduledQueueRef.current.push({ time, beat })
+      // Advance to the next beat using the *current* tempo, so tempo
+      // changes mid-song apply on the next pulse without restarting.
+      const secPerBeat = 60 / Math.max(1, tempoRef.current)
+      nextBeatTimeRef.current = time + secPerBeat
+      nextBeatIndexRef.current = (beat + 1) % beatsPerMeasureRef.current
+    }
+  }, [scheduleClickAtTime])
+
+  // --- The UI advancer ---
+  // Runs at display refresh and pops beats from the queue once their
+  // scheduled time has passed, so `setCurrentBeat` is called as close as
+  // possible to the moment the audio actually plays. Decoupled from the
+  // scheduler so a stalled rAF (e.g. tab not focused) doesn't break audio.
+  const uiTick = useCallback(() => {
+    const audioCtx = audioContextRef.current
+    if (audioCtx) {
+      const now = audioCtx.currentTime
+      const queue = scheduledQueueRef.current
+      let lastFired = -1
+      while (queue.length > 0 && queue[0].time <= now) {
+        lastFired = queue.shift()!.beat
+      }
+      if (lastFired !== -1) setCurrentBeat(lastFired)
+    }
+    uiRafRef.current = requestAnimationFrame(uiTick)
+  }, [])
 
   const startMetronome = useCallback(() => {
     const setupAndRunMetronome = () => {
-      // This function assumes audioContextRef.current is valid and running
-      // REMOVED: mediaStreamDestinationRef creation
-      // REMOVED: audioElementRef creation and play()
-
-      // Now that infrastructure should be ready, start the metronome beats
+      const audioCtx = audioContextRef.current!
+      // Reset scheduler state. Start a hair (50 ms) in the future so the
+      // very first beat is itself scheduled ahead, not played immediately
+      // — keeps the first beat's timing consistent with the rest.
+      nextBeatIndexRef.current = 0
+      nextBeatTimeRef.current = audioCtx.currentTime + 0.05
+      scheduledQueueRef.current = []
       setCurrentBeat(0)
-      playClick(0) // playClick will now use direct audioContext.destination
-      const intervalTime = 60000 / song.tempo
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current)
-      }
-      intervalRef.current = setInterval(() => {
-        setCurrentBeat(prevBeat => {
-          const nextBeat = (prevBeat + 1) % beatsPerMeasure
-          playClick(nextBeat)
-          return nextBeat
-        })
-      }, intervalTime)
+      // Kick off the scheduler tick (audio) and UI advancer (visual).
+      if (schedulerTimerRef.current) clearInterval(schedulerTimerRef.current)
+      schedulerTick() // immediate first scheduling pass
+      schedulerTimerRef.current = setInterval(
+        schedulerTick,
+        LOOKAHEAD_INTERVAL_MS
+      )
+      if (uiRafRef.current !== null) cancelAnimationFrame(uiRafRef.current)
+      uiRafRef.current = requestAnimationFrame(uiTick)
     }
 
     if (!audioContextRef.current) {
@@ -374,16 +442,21 @@ const SongView: React.FC<SongViewProps> = ({
         })
         .catch(err => console.error('Error resuming AudioContext:', err))
     } else {
-      // Context is already running
       setupAndRunMetronome()
     }
-  }, [song.tempo, beatsPerMeasure, playClick])
+  }, [schedulerTick, uiTick])
 
   const stopMetronome = useCallback(() => {
     setCurrentBeat(0)
-    if (intervalRef.current) {
-      clearInterval(intervalRef.current)
+    if (schedulerTimerRef.current) {
+      clearInterval(schedulerTimerRef.current)
+      schedulerTimerRef.current = null
     }
+    if (uiRafRef.current !== null) {
+      cancelAnimationFrame(uiRafRef.current)
+      uiRafRef.current = null
+    }
+    scheduledQueueRef.current = []
   }, [])
   // Check for enabled MIDI
   useEffect(() => {

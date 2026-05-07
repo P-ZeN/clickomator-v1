@@ -27,8 +27,18 @@ interface MidiBackend {
 class WebMidiBackend implements MidiBackend {
   private midiAccess: WebMidi.MIDIAccess | null = null
   private midiOutput: WebMidi.MIDIOutput | null = null
-  private clockIntervalId: number | null = null
-  private pulsesPerQuarterNote = 24
+  // ── Lookahead scheduler ────────────────────────────────────────────────
+  // Same Chris Wilson pattern as the audio metronome in SongView: a slow
+  // imprecise JS timer schedules MIDI clock pulses up to SCHEDULE_AHEAD_MS
+  // milliseconds in advance, using `output.send(data, timestamp)` so the
+  // browser dispatches each pulse at the exact intended time. This avoids
+  // the cumulative drift and 15-100 ms jitter of a naive setInterval loop,
+  // and makes the PWA MIDI clock as tight as the native Tauri/Rust one.
+  private clockTimerId: number | null = null
+  private nextPulseTime = 0 // performance.now() ms
+  private readonly pulsesPerQuarterNote = 24
+  private readonly LOOKAHEAD_INTERVAL_MS = 25
+  private readonly SCHEDULE_AHEAD_MS = 100
   private isRunning = false
   private tempo = 120
 
@@ -70,26 +80,40 @@ class WebMidiBackend implements MidiBackend {
 
   setTempo (bpm: number): void {
     this.tempo = bpm
-    if (this.isRunning) {
-      this.stopClockSilently()
-      this.startClockSilently()
+    // No need to restart: the scheduler tick reads `this.tempo` on every
+    // wake-up, so the new tempo applies on the very next pulse it schedules.
+  }
+
+  private schedulerTick = (): void => {
+    if (!this.isRunning || !this.midiOutput) return
+    const horizon = performance.now() + this.SCHEDULE_AHEAD_MS
+    const msPerPulse = 60000 / this.tempo / this.pulsesPerQuarterNote
+    while (this.nextPulseTime < horizon) {
+      // The second arg is a DOMHighResTimeStamp; the browser dispatches
+      // the bytes on the MIDI port at exactly that time, sub-ms accurate.
+      this.midiOutput.send([0xf8], this.nextPulseTime)
+      this.nextPulseTime += msPerPulse
     }
   }
 
   private startClockSilently (): void {
     if (this.isRunning || !this.midiOutput) return
-    const ms = 60000 / this.tempo / this.pulsesPerQuarterNote
-    this.clockIntervalId = window.setInterval(() => {
-      this.midiOutput?.send([0xf8])
-    }, ms)
+    // Start a hair (10 ms) in the future so the very first pulse is itself
+    // scheduled ahead, matching the audio scheduler's behaviour.
+    this.nextPulseTime = performance.now() + 10
     this.isRunning = true
+    this.schedulerTick() // initial pass
+    this.clockTimerId = window.setInterval(
+      this.schedulerTick,
+      this.LOOKAHEAD_INTERVAL_MS
+    )
   }
 
   private stopClockSilently (): void {
     if (!this.isRunning) return
-    if (this.clockIntervalId !== null) {
-      clearInterval(this.clockIntervalId)
-      this.clockIntervalId = null
+    if (this.clockTimerId !== null) {
+      clearInterval(this.clockTimerId)
+      this.clockTimerId = null
     }
     this.isRunning = false
   }
