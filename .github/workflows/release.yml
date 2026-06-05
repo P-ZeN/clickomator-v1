@@ -78,7 +78,14 @@ jobs:
           prefix-key: 'v2-cargo-icons'
 
       - name: Install JS deps
-        run: npm ci
+        # Use `npm install`, not `npm ci`, on purpose. `@tauri-apps/cli` ships its
+        # native binary as platform-specific optional deps. A package-lock.json
+        # generated on one OS (here: Linux/WSL) only pins that OS's binding
+        # (npm/cli#4828), so `npm ci` on the Windows/macOS runners can't install
+        # the matching binary and `tauri icon`/`tauri build` crash with
+        # "Cannot find native binding". `npm install` re-resolves optional deps
+        # for the current runner and fetches the correct binary.
+        run: npm install
 
       - name: Regenerate desktop icons from master PNG
         # Tauri-build embeds the .ico into the Windows .exe and the .icns into
