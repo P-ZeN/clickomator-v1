@@ -1,7 +1,7 @@
 name: Deploy Web
 
 # Builds the web (PWA) version of Clickomator and rsyncs `dist/` to
-# ehpad-break.net via SSH whenever main is updated.
+# ehpad-break.net via SSH whenever the `deploy` branch is updated.
 #
 # Required repo secrets:
 #   DEPLOY_SSH_KEY   - private key (PEM, with newlines) authorised on the server

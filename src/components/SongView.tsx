@@ -707,8 +707,14 @@ const SongView: React.FC<SongViewProps> = ({
   ])
   useEffect(() => {
     return () => {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current)
+      // Tear down the lookahead scheduler + UI animation frame on unmount
+      if (schedulerTimerRef.current) {
+        clearInterval(schedulerTimerRef.current)
+        schedulerTimerRef.current = null
+      }
+      if (uiRafRef.current !== null) {
+        cancelAnimationFrame(uiRafRef.current)
+        uiRafRef.current = null
       }
       // Clear title flash timeout on component unmount
       if (titleFlashTimeoutRef.current) {

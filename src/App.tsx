@@ -9,27 +9,35 @@ import Song from './pages/Song'
 import Parameters from './pages/Parameters'
 import NotFound from './pages/NotFound'
 import { useEscapeFullscreenToggle } from './hooks/use-escape-fullscreen-toggle'
+import { useEffect } from 'react'
+import { applyCursorSize, getStoredCursorSize } from './utils/cursorSize'
+import ErrorBoundary from './components/ErrorBoundary'
 
 const queryClient = new QueryClient()
 
 const App = () => {
   useEscapeFullscreenToggle()
+  useEffect(() => {
+    applyCursorSize(getStoredCursorSize())
+  }, [])
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <Toaster />
         <Sonner />
         <div className='h-screen max-h-screen overflow-hidden flex flex-col'>
-          <BrowserRouter basename={import.meta.env.VITE_BASE_PATH || '/'}>
-            <Routes>
-              {' '}
-              <Route path='/' element={<Index />} />
-              <Route path='/setlist/:id' element={<Setlist />} />
-              <Route path='/song/:id' element={<Song />} />
-              <Route path='/parameters' element={<Parameters />} />
-              <Route path='*' element={<NotFound />} />
-            </Routes>
-          </BrowserRouter>
+          <ErrorBoundary>
+            <BrowserRouter basename={import.meta.env.VITE_BASE_PATH || '/'}>
+              <Routes>
+                {' '}
+                <Route path='/' element={<Index />} />
+                <Route path='/setlist/:id' element={<Setlist />} />
+                <Route path='/song/:id' element={<Song />} />
+                <Route path='/parameters' element={<Parameters />} />
+                <Route path='*' element={<NotFound />} />
+              </Routes>
+            </BrowserRouter>
+          </ErrorBoundary>
         </div>
       </TooltipProvider>
     </QueryClientProvider>

@@ -12,6 +12,11 @@ import {
   SelectValue
 } from '@/components/ui/select'
 import { Input } from '@/components/ui/input'
+import {
+  CURSOR_SIZES,
+  getStoredCursorSize,
+  setStoredCursorSize
+} from '@/utils/cursorSize'
 
 // Add global type for __TAURI_INTERNALS__ to avoid TS error
 declare global {
@@ -45,6 +50,14 @@ const Parameters = () => {
     const stored = localStorage.getItem(METRONOME_FIRST_BEAT_RATE_KEY)
     return stored ? parseFloat(stored) : DEFAULT_FIRST_BEAT_RATE
   })
+
+  // --- Cursor size (accessibility) ---
+  const [cursorSize, setCursorSize] = useState(() => getStoredCursorSize())
+  const handleCursorSizeChange = (value: string) => {
+    const size = parseInt(value, 10)
+    setCursorSize(size)
+    setStoredCursorSize(size)
+  }
 
   useEffect(() => {
     // Check if running in Tauri
@@ -90,10 +103,11 @@ const Parameters = () => {
 
   return (
     <div
-      className='min-h-screen text-white bg-cover bg-center flex items-center justify-center'
+      className='h-full w-full overflow-y-auto text-white bg-cover bg-center'
       style={{ backgroundImage: 'url(' + assetPath('bg-gilles.jpg') + ')' }}
     >
-      <div className='max-w-4xl w-full mx-auto bg-black bg-opacity-90 p-6 rounded-lg shadow-xl'>
+      <div className='min-h-full flex items-center justify-center p-4'>
+        <div className='max-w-4xl w-full mx-auto bg-black bg-opacity-90 p-6 rounded-lg shadow-xl'>
         <div className='flex justify-between items-center mb-6'>
           <div className='flex items-center gap-3'>
             <Button
@@ -127,6 +141,45 @@ const Parameters = () => {
           <section className='mb-8'>
             <h2 className='text-lg font-medium mb-4'>External Connectivity</h2>
             <MidiSettings />
+          </section>
+
+          {/* --- Accessibility Settings --- */}
+          <section className='mb-8'>
+            <h2 className='text-lg font-medium mb-4'>Accessibility</h2>
+            <div className='rounded-lg border border-gray-700 bg-gray-800 p-4'>
+              <label
+                htmlFor='cursorSize'
+                className='block text-sm font-medium mb-1'
+              >
+                Mouse Cursor Size:
+              </label>
+              <Select
+                value={cursorSize.toString()}
+                onValueChange={handleCursorSizeChange}
+              >
+                <SelectTrigger
+                  id='cursorSize'
+                  className='bg-gray-900 text-white border-gray-700 focus:ring-indigo-500 focus:border-indigo-500'
+                >
+                  <SelectValue placeholder='Select size' className='text-white' />
+                </SelectTrigger>
+                <SelectContent className='bg-gray-900 text-white border-gray-700'>
+                  {CURSOR_SIZES.map(option => (
+                    <SelectItem
+                      key={option.value}
+                      value={option.value.toString()}
+                      className='text-white bg-gray-900 focus:bg-gray-700 focus:text-gray-100 text-gray-200'
+                    >
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className='text-xs text-gray-400 mt-2'>
+                Makes the on-screen mouse pointer larger and easier to see.
+                Applies everywhere in the app immediately.
+              </p>
+            </div>
           </section>
 
           {/* --- Metronome Sound Settings --- */}
@@ -213,6 +266,7 @@ const Parameters = () => {
             <p>Clickomator v1</p>
           </div>
         </div>
+      </div>
       </div>
     </div>
   )

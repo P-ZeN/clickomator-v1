@@ -23,3 +23,9 @@ dist-ssr
 *.sln
 *.sw?
 job-logs.txt
+
+# Generated dev service-worker artifacts (vite-plugin-pwa devOptions)
+dev-dist
+
+# Claude Code session/settings
+.claude

@@ -43,7 +43,7 @@ export default defineConfig(({ mode }) => ({
                 ],
             },
             workbox: {
-                globPatterns: ["**/*.{js,css,html,ico,png,svg,jpg,jpeg,webmanifest}"],
+                globPatterns: ["**/*.{js,css,html,ico,png,svg,jpg,jpeg,wav,webmanifest}"],
                 runtimeCaching: [
                     {
                         urlPattern: /\/clickomator\//,
@@ -60,7 +60,12 @@ export default defineConfig(({ mode }) => ({
                 navigateFallback: "index.html",
             },
             devOptions: {
-                enabled: mode === "development", // Enable PWA features in development if you want to test them
+                // Keep the service worker OFF in dev. With it on, workbox has no
+                // precache manifest in dev and logs a "No route found" / "did not
+                // find a match" warning for every asset fetch. The SW still builds
+                // and runs in production. Flip to `mode === "development"` only when
+                // you specifically need to test PWA install/offline behaviour locally.
+                enabled: false,
                 /* when using registerType: 'autoUpdate' */
                 // type: 'module',
             },

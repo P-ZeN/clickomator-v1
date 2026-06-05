@@ -316,12 +316,12 @@ const Index = () => {
   }, [])
   return (
     <div
-      className='min-h-dvh text-white bg-cover bg-center flex justify-center items-center py-8' // Changed min-h-screen to min-h-dvh and added items-center
+      className='h-full w-full overflow-y-auto text-white bg-cover bg-center' // Scroll container so tall content (download box) stays reachable
       style={{ backgroundImage: 'url(' + assetPath('bg-gilles.jpg') + ')' }}
     >
       {' '}
       {/* This outer div might need to be adjusted if the download box is outside of it */}
-      <div className='flex flex-col items-center w-full'>
+      <div className='min-h-full flex flex-col items-center justify-center w-full py-8'>
         {' '}
         {/* Added flex-col and items-center */}
         <div className='max-w-4xl w-full mx-auto bg-black bg-opacity-90 p-6 rounded-lg shadow-xl mb-6'>
