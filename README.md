@@ -1,73 +1,56 @@
-# Welcome to your Lovable project
+# Clickomator
 
-## Project info
+Métronome audio et visuel — for musicians who want a metronome that's both audible AND visible, on the desktop or in the browser.
 
-**URL**: https://lovable.dev/projects/f55c5786-9df2-4b4f-9484-d36a35fb2f44
+Distributed as:
 
-## How can I edit this code?
+- **Web app / PWA** — Vite-built static site (deployed to `ehpad-break.net/clickomator/` via `deploy-web.yml`)
+- **Desktop app** — Tauri v2 bundles for Linux (AppImage + `.deb`), Windows, macOS (built and released via `release.yml`)
 
-There are several ways of editing your application.
+## Stack
 
-**Use Lovable**
+- React + TypeScript + Vite (web frontend)
+- Tauri v2 + Rust (desktop backend, native MIDI clock, system wake-lock)
+- shadcn-ui + Radix UI + Tailwind (components / styling)
+- Web Audio API with lookahead scheduler (timing core — see `src/utils/midiService.ts`)
+- `vite-plugin-pwa` for service-worker / installable web app
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/f55c5786-9df2-4b4f-9484-d36a35fb2f44) and start prompting.
+## Local development
 
-Changes made via Lovable will be committed automatically to this repo.
-
-**Use your preferred IDE**
-
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
-
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
-
-Follow these steps:
+Requires Node.js (tested on 20) and npm.
 
 ```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
+# Install dependencies
+npm install
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
+# Web dev server (browser)
 npm run dev
+
+# Tauri desktop dev (opens the native window)
+npm run devtauri
+
+# Lint
+npm run lint
 ```
 
-**Edit a file directly in GitHub**
+## Build & release
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+```sh
+# Web build (static output in dist/)
+npm run build
 
-**Use GitHub Codespaces**
+# Tauri bundle for current platform
+npm run bundle
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+# Coordinated release (bumps versions, tags, pushes — see scripts/release.mjs)
+npm run release
+```
 
-## What technologies are used for this project?
+## Distribution
 
-This project is built with:
+- **Web**: pushing to the `deploy` branch triggers `.github/workflows/deploy-web.yml`, which builds and rsyncs `dist/` to the web host
+- **Desktop**: a release commit triggers `.github/workflows/release.yml`, which builds bundles on all three OSes and publishes them as a GitHub Release. On Linux, GStreamer plugins are bundled into the AppImage via `linuxdeploy-plugin-gstreamer` so audio works on any distro regardless of the user's installed GStreamer version.
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+## History
 
-## How can I deploy this project?
-
-Simply open [Lovable](https://lovable.dev/projects/f55c5786-9df2-4b4f-9484-d36a35fb2f44) and click on Share -> Publish.
-
-## Can I connect a custom domain to my Lovable project?
-
-Yes, you can!
-
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
-
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-tricks/custom-domain#step-by-step-guide)
+Originally scaffolded with [Lovable](https://lovable.dev) as a prototype, then rewritten into its current form (Tauri + native MIDI + Web Audio scheduler + PWA). The Lovable connection was severed in June 2026; the project is now maintained directly via git.

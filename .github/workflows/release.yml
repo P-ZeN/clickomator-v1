@@ -65,7 +65,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'yarn'
+          cache: 'npm'
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
@@ -78,7 +78,7 @@ jobs:
           prefix-key: 'v2-cargo-icons'
 
       - name: Install JS deps
-        run: yarn install --frozen-lockfile
+        run: npm ci
 
       - name: Regenerate desktop icons from master PNG
         # Tauri-build embeds the .ico into the Windows .exe and the .icns into
@@ -176,7 +176,7 @@ jobs:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-        run: yarn bundle
+        run: npm run bundle
 
       - name: Bundle GStreamer plugins into AppImage (Linux only)
         # Tauri's AppImage bundler ships GStreamer libraries but NOT plugins.
