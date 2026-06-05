@@ -49,10 +49,16 @@ if (branch !== 'main') {
   console.warn(`! You are on branch '${branch}', not 'main'. Continuing anyway.`)
 }
 
+// A pre-existing tag is not fatal: this is how you re-release a version after a
+// failed CI build. The tag is moved to HEAD and force-pushed further down, which
+// re-triggers the release workflow. Pass --no-retag to keep the old strict guard.
 const existingTags = sh('git', ['tag', '--list', tag])
 if (existingTags) {
-  console.error(`Tag ${tag} already exists.`)
-  process.exit(1)
+  if (process.argv.includes('--no-retag')) {
+    console.error(`Tag ${tag} already exists (and --no-retag was given).`)
+    process.exit(1)
+  }
+  console.warn(`! Tag ${tag} already exists — it will be moved to HEAD and force-pushed (re-release).`)
 }
 
 // 2. Bump files -------------------------------------------------------------
